@@ -135,8 +135,25 @@ public final class Pipelines {
      */
     static TypedSpec embeddedView(TypedSpec n) {
         TypedSpec u = unwrapToOne(n);
+        String deferred = deferredReason(u);
+        if (deferred != null) {
+            throw new com.legend.error.NotImplementedException(deferred);
+        }
         return u instanceof com.legend.compiler.spec.typed.TypedIf i && guardedValue(i) != null
                 ? i.elseBranch().orElseThrow() : u;
+    }
+
+    /** The reason of a DEFERRED object -- {@code cast(fail('reason'), @C)} to a class, the value the normalizer gives
+     *  a key it cannot decode yet (VariantDecode) -- or null. A leaf is never read through it: the read is refused
+     *  with the reason. */
+    private static @com.legend.base.Nullable String deferredReason(TypedSpec u) {
+        return u instanceof com.legend.compiler.spec.typed.TypedCast cast
+                && com.legend.compiler.element.type.Type.asClassType(cast.info().type()) != null
+                && cast.source() instanceof com.legend.compiler.spec.typed.TypedNativeCall fail
+                && com.legend.builtin.Pure.AT_ASSERTS_FAIL.contains(fail.callee().id())
+                && fail.args().size() == 1
+                && fail.args().get(0) instanceof com.legend.compiler.spec.typed.TypedCString reason
+                ? reason.value() : null;
     }
 
     /** The Variant {@code $v} of a decoded object's guard {@code if(isEmpty($v), |[], |^C(...))} whose every leaf
@@ -160,9 +177,12 @@ public final class Pipelines {
 
     /** Whether {@code leaf} is one key of the Variant {@code v}, read and nothing else, so empty when {@code v} is:
      *  {@code to}/{@code toMany} of {@code get(v, key)} (under toOne, toOneMany), or the guarded instance of
-     *  {@code get(v, key)}. */
+     *  {@code get(v, key)}; or a deferred key ({@link #deferredReason}), whose read is refused, never answered. */
     private static boolean readsKeyOf(TypedSpec leaf, TypedSpec v) {
         TypedSpec u = unwrapToOne(leaf);
+        if (deferredReason(u) != null) {
+            return true;
+        }
         if (u instanceof com.legend.compiler.spec.typed.TypedNativeCall many && many.args().size() == 1
                 && com.legend.builtin.Pure.AT_MULTIPLICITY_TO_ONE_MANY.contains(many.callee().id())) {
             u = many.args().get(0);
