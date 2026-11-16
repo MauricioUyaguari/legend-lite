@@ -129,6 +129,19 @@ class BindingTransformerTest {
     }
 
     @Test
+    @DisplayName("a relation function mapping's Binding, named through the section's import: the same decode")
+    void aRelationFunctionsBindingResolvesThroughAnImport() throws Exception {
+        String query = "|x::Person.all()->project(~[n:x|$x.name, f:x|$x.firm.legalName])"
+                + "->sort(~n->ascending())->from(x::RM, x::RT)";
+        String model = model(ANY, "").replace("###Mapping\nMapping x::M", "###Mapping\nimport x::*;\nMapping x::M")
+                .replace("firm: Binding x::FirmBinding : FIRM", "firm: Binding FirmBinding : FIRM");
+        assertTrue(model.contains("import x::*;") && model.contains("firm: Binding FirmBinding : FIRM"), model);
+        assertEquals(List.of(Arrays.asList("Ann", "Acme"), Arrays.asList("Bob", "Beta"), Arrays.asList("Cy", "null")),
+                DataDeliveryMatrixTest.read(new DataDeliveryMatrixTest.Data(model, query, List.of(), "x::RT"),
+                        query, ANY), "the binding's short name resolved against the import");
+    }
+
+    @Test
     @DisplayName("a filter through the bound object: legend-engine's rows")
     void filters() throws Exception {
         String query = "|x::Person.all()->filter(x|$x.firm.legalName == 'Acme')->project(~[n:x|$x.name])"
