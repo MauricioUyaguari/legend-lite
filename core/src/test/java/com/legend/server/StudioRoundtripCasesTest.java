@@ -217,4 +217,150 @@ Mapping model::mapping::TradeMapping
 )
                 """);
     }
+
+    /**
+     * A MongoDBConnection naming two servers: legend-engine 4.145.0 compiles the list and seeds its client with all of
+     * them. Lite failed at the compile, 500, "UnsupportedOperationException: MongoDBConnection
+     * 'model::conn::MongoConnection' names 2 servers: one server is supported (a replica set's list is not yet)"
+     * (2026-11-16).
+     */
+    @Test
+    void unknownElementsStoresAndConnections() {
+        roundtrips("""
+###Deephaven
+Deephaven model::warehouse::TradeStore
+(
+    Table trades
+    (
+      id: INT,
+      symbol: STRING,
+      isBuy: BOOLEAN,
+      tradeTime: DATETIME,
+      price: FLOAT,
+      amount: DOUBLE,
+      settled: TIMESTAMP,
+      notional: DECIMAL(10, 2)
+    )
+)
+
+DeephavenApp model::TradeApp
+{
+  applicationName: 'TradesApp';
+  function: model::answer():Integer[1];
+  description: 'A sample Deephaven app';
+  ownership: Deployment { identifier: '12345' };
+}
+
+
+###Elasticsearch
+Elasticsearch7Cluster model::warehouse::SearchStore
+{
+  indices: [
+    index1: {
+      properties: [
+        prop1: Keyword,
+        prop2: Text,
+        prop3: Date,
+        prop4: Integer,
+        prop5: Boolean
+      ];
+    },
+    'index-quoted': {
+      properties: [
+        'prop-quoted': Keyword {
+          fields: [
+            nested1: Text
+          ];
+        }
+      ];
+    }
+  ];
+}
+
+
+
+###MongoDB
+Database model::warehouse::MongoStore
+(
+  Collection Person
+  (
+    validationLevel: strict;
+    validationAction: error;
+    jsonSchema: {
+      "bsonType": "object",
+      "title": "Record of Person",
+      "properties": {
+        "name": {
+          "bsonType": "string",
+          "description": "name of the person",
+          "minLength": 2
+        }
+      },
+      "additionalProperties": false
+    };
+  )
+)
+
+
+###Pure
+Class model::Person
+{
+  name: String[1];
+}
+
+function model::answer(): Integer[1]
+{
+  42
+}
+
+
+###ExternalFormat
+SchemaSet model::PersonSchemaSet
+{
+  format: JSON;
+  schemas: [
+    {
+      location: 'model/Person.json';
+      content: '{"title":"model::Person","type":"object","properties":{"name":{"type":"string"}},"required":["name"]}';
+    }
+  ];
+}
+
+Binding model::PersonBinding
+{
+  schemaSet: model::PersonSchemaSet;
+  contentType: 'application/json';
+  modelIncludes: [
+    model::Person
+  ];
+}
+
+
+###Mapping
+Mapping model::MongoMapping
+(
+  *model::Person[person]: MongoDB
+  {
+    ~mainCollection [model::warehouse::MongoStore] Person
+    ~binding model::PersonBinding
+  }
+)
+
+
+###Connection
+MongoDBConnection model::conn::MongoConnection
+{
+  database: legend_db;
+  store: model::warehouse::MongoStore;
+  serverURLs: [localhost:27071, myhost.example.com:27071];
+  authentication: # UserPassword {
+    username: 'mongo_ro';
+    password: SystemPropertiesSecret
+    {
+      systemPropertyName: 'sys.prop.name';
+    };
+  }#;
+}
+                """);
+    }
 }
