@@ -24,6 +24,88 @@ class StudioRoundtripCasesTest {
     }
 
     /**
+     * A View's ~filter through joins, each with its join type: {@code ~filter [db] (INNER) @J | [db] F} and
+     * {@code ~filter [db] @J > (OUTER) [db]@K | [db] F}. Lite failed at the parse, "[49:48] expected identifier, got
+     * PAREN_OPEN" (2026-11-16).
+     */
+    @Test
+    void relationalDatabaseOperationsAndJoinTypes() {
+        roundtrips("""
+###Relational
+Database model::store::OperationsDatabase
+(
+  Table PersonTable
+  (
+    ID INTEGER PRIMARY KEY,
+    FIRSTNAME VARCHAR(200),
+    LASTNAME VARCHAR(200),
+    AGE INTEGER,
+    SALARY DOUBLE,
+    STATUS VARCHAR(20),
+    FIRMID INTEGER,
+    ADDRESSID INTEGER,
+    MANAGERID INTEGER
+  )
+  Table FirmTable
+  (
+    ID INTEGER PRIMARY KEY,
+    LEGALNAME VARCHAR(200),
+    ADDRESSID INTEGER,
+    TYPE VARCHAR(20)
+  )
+  Table AddressTable
+  (
+    ID INTEGER PRIMARY KEY,
+    STREET VARCHAR(200),
+    CITY VARCHAR(100),
+    ZIPCODE VARCHAR(10)
+  )
+
+  View PersonOperationsView
+  (
+    ~filter ActivePersonFilter
+    id: PersonTable.ID PRIMARY KEY,
+    firstName: PersonTable.FIRSTNAME,
+    ageGroup: case(PersonTable.AGE < 18, 'minor', PersonTable.AGE >= 65, 'senior', 'adult'),
+    salaryOrNull: case(PersonTable.SALARY > 0.5, PersonTable.SALARY, sqlNull()),
+    hasManager: case(PersonTable.MANAGERID is null, 'N', 'Y'),
+    isMinorOrUnknown: case(PersonTable.AGE is null or PersonTable.AGE < 18, 'Y', 'N'),
+    statusCode: case(PersonTable.STATUS = 'ACTIVE', 1, PersonTable.STATUS != 'INACTIVE', 2, PersonTable.STATUS <> 'DELETED', 3, sqlNull()),
+    fullName: concat(PersonTable.FIRSTNAME, ' ', PersonTable.LASTNAME),
+    firmName: [model::store::OperationsDatabase]@Person_Firm | FirmTable.LEGALNAME,
+    firmCity: [model::store::OperationsDatabase] (INNER) @Person_Firm > (OUTER) [model::store::OperationsDatabase]@Firm_Address | AddressTable.CITY,
+    personCity: [model::store::OperationsDatabase] (OUTER) @Person_Address | AddressTable.CITY,
+    managerFirmName: [model::store::OperationsDatabase]@Person_Manager > (INNER) [model::store::OperationsDatabase]@Person_Firm | FirmTable.LEGALNAME
+  )
+  View PersonInFirmTypeView
+  (
+    ~filter [model::store::OperationsDatabase] (INNER) @Person_Firm | [model::store::OperationsDatabase]FirmTypeFilter
+    id: PersonTable.ID PRIMARY KEY,
+    lastName: PersonTable.LASTNAME
+  )
+  View PersonWithAddressView
+  (
+    ~filter [model::store::OperationsDatabase] @Person_Firm > (OUTER) [model::store::OperationsDatabase]@Firm_Address | [model::store::OperationsDatabase]CityFilter
+    id: PersonTable.ID PRIMARY KEY
+  )
+
+  Join Person_Firm(PersonTable.FIRMID = FirmTable.ID)
+  Join Firm_Address(FirmTable.ADDRESSID = AddressTable.ID and AddressTable.STREET is not null)
+  Join Person_Address(PersonTable.ADDRESSID = AddressTable.ID and (AddressTable.CITY <> 'Unknown' or AddressTable.ZIPCODE != '00000'))
+  Join Person_Manager(PersonTable.MANAGERID = {target}.ID and {target}.ID != PersonTable.ID)
+
+  Filter ActivePersonFilter(PersonTable.STATUS <> 'INACTIVE' and PersonTable.AGE >= 18 and PersonTable.AGE <= 120)
+  Filter NullFilter(PersonTable.FIRSTNAME is null or PersonTable.LASTNAME is not null)
+  Filter NotEqualFilter(PersonTable.STATUS != 'DELETED')
+  Filter GroupedFilter((PersonTable.AGE > 18 and PersonTable.AGE < 65) or (PersonTable.STATUS = 'ACTIVE' and PersonTable.SALARY >= 1000.5))
+  Filter NestedGroupFilter(PersonTable.ID > 0 and (PersonTable.STATUS = 'ACTIVE' or (PersonTable.STATUS = 'ON_LEAVE' and PersonTable.AGE < 60)))
+  Filter FirmTypeFilter(FirmTable.TYPE <> 'LLC' and FirmTable.LEGALNAME is not null)
+  Filter CityFilter(AddressTable.CITY is not null and AddressTable.CITY != '')
+)
+                """);
+    }
+
+    /**
      * A relational property mapping's {@code if(c, 'LARGE', sqlNull())}: the engine types the store's NULL literal as
      * {@code Other}, absorbed by the other branch's type. Lite failed at the compile, "property 'sizeBucket' of
      * 'model::domain::Trade': expected String, got meta::pure::metamodel::type::Any" (2026-11-16).
