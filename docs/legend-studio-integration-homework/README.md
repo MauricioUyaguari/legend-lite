@@ -32,6 +32,8 @@ node docs/legend-studio-integration-homework/01-engine-routes.mjs bazel-bin/wasm
 | `07-nullable-arithmetic.mjs` | planner dir | Arithmetic on a nullable column is a compile error; with `toOne()` it plans |
 | `08-studio-lambda-roundtrip.mjs` | planner dir, legend-studio root | Each query re-serialized by legend-studio's own protocol classes plans to the same SQL (8 of 8) |
 | `09-studio-plan-deserializer.mjs` | planner dir, legend-studio root | legend-lite's `generatePlan` answer read by legend-studio's `V1_deserializeExecutionPlan` and DataCube's own extraction logic |
+| `10-shim-and-routing.mjs` | planner dir | The two new pieces of phase 1 as legend-studio would write them, on the exact model of spike 03: the model shim (G1, G2) makes it plan, and the routing rule keeps only the cast-less pivot (G3) on the engine. 10 planned, 1 kept on the engine, 1 failed (`last()`) |
+| `11-webpack-browser-probe/` | `build.cjs`: legend-studio root (built), planner package dir, out dir | Phase 1's planner client as legend-studio compiled it, built with legend-studio's webpack under production file names and run in a browser: the worker loads the module and `generatePlan` answers with SQL; nothing of the planner is fetched before the first request |
 
 ## What was not run
 

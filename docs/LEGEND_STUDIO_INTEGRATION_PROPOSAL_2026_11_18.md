@@ -15,6 +15,29 @@ Section 11 says what was not verified.
 
 ---
 
+## Contents
+
+- [1. The answer in brief](#1-the-answer-in-brief)
+- [2. The apps, and how much each depends on the engine](#2-the-apps-and-how-much-each-depends-on-the-engine)
+- [3. What legend-lite offers](#3-what-legend-lite-offers)
+- [4. What the spikes showed](#4-what-the-spikes-showed)
+- [5. The gaps found](#5-the-gaps-found)
+- [6. Where a second planner plugs into legend-studio](#6-where-a-second-planner-plugs-into-legend-studio)
+- [7. Phase 1 in detail](#7-phase-1-in-detail)
+  - [7.0 The design flow](#70-the-design-flow)
+  - [7.1 Changes in legend-studio](#71-changes-in-legend-studio)
+  - [7.2 Changes in legend-lite](#72-changes-in-legend-lite)
+  - [7.3 Shadow mode, which is how the risk is retired](#73-shadow-mode-which-is-how-the-risk-is-retired)
+  - [7.4 What phase 1 does not do](#74-what-phase-1-does-not-do)
+  - [7.5 How hard, honestly](#75-how-hard-honestly)
+- [8. Risks](#8-risks)
+- [9. The later phases](#9-the-later-phases)
+  - [9.1 The other candidates, and where each stands](#91-the-other-candidates-and-where-each-stands)
+- [10. Decisions that are the user's](#10-decisions-that-are-the-users)
+- [11. What was not verified](#11-what-was-not-verified)
+
+---
+
 ## 1. The answer in brief
 
 **Start with the standalone DataCube app, on its DuckDB-backed sources only, replacing one engine call
@@ -394,8 +417,19 @@ missing grammar routes.
 Snowflake connection today), pointer models through Depot, test execution, and the rest of the list in the
 investigation. This is the server team's roadmap, not an integration step.
 
-**Marketplace** follows Query and Studio: its engine use is small and comes through shared extensions, so
-it gains from phase 4 without work of its own.
+### 9.1 The other candidates, and where each stands
+
+The phases above are the recommended path. These were also considered. None is a phase of its own.
+
+| Candidate | How it would plug in | Where it stands |
+|---|---|---|
+| **Legend Cube** (`legend-cube`, `legend-cube-builder`) | Its injectable nine-method `CubeEngine` (section 2) | The easiest second target after DataCube. Not scheduled: it mostly executes on real warehouses, so most of its value waits for phase 5. Its typing and grammar calls gain from the routes phase 2 adds |
+| **DataCube embedded in Query** (`QueryBuilderDataCubeEngine`) | Seam C (section 6) | Not reached by phases 1 to 3: it has no DuckDB caching, so it runs no SQL in the tab. It gains from phase 4 |
+| **Marketplace** | The shared extensions it already uses | Follows Query and Studio. Its engine use is small, so it gains from phase 4 without work of its own |
+| **The wasm executor as the first step** | The execute halves in the DataCube app | Not first. It is phase 3 (section 1) |
+| **legend-lite's DuckDB client in place of `LegendDataCubeDuckDBEngine`** | A replacement of DataCube's DuckDB layer | Not recommended: a rewrite of code that works (phase 3) |
+| **`engine.url` pointed at a legend-lite server today** | Seam D, no code | Not usable yet. It is phase 5 (section 6) |
+| **Taxonomy** | | Not applicable: removed from legend-studio in 2023 |
 
 ---
 
