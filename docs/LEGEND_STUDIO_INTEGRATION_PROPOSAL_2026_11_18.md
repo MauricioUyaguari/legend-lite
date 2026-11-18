@@ -3,6 +3,12 @@
 **Status:** proposed, not ratified. Nothing here is built. Section 10 lists the decisions that are the
 user's.
 
+**Corrected on 2026-11-18**, after the first step was implemented
+([`LEGEND_STUDIO_PHASE_1_IMPLEMENTATION_PLAN_2026_11_18.md`](LEGEND_STUDIO_PHASE_1_IMPLEMENTATION_PLAN_2026_11_18.md)).
+Sections 7.0, 7.1, 7.2 and 9 first described one setting with three values and three files from legend-lite. What
+was built has two boolean settings and two files from legend-lite, with the worker written in legend-studio.
+Section 7.1 says why.
+
 **The question (the user, 2026-11-18):** the quickest path to integrate legend-lite into the apps of the
 legend-studio repository (Studio, Query, Taxonomy, Marketplace, DataCube), lowest risk first, reusing
 legend-lite's WebAssembly where possible. For example: use the wasm planner inside legend-studio's
@@ -275,11 +281,11 @@ The pieces, and where each lives:
 | Piece | Where | New? |
 |---|---|---|
 | The input (`function`, `model`, `context`, `parameterValues`, `clientVersion`) | `_generateExecutionPlan`, `LegendDataCubeDataCubeEngine.ts:1718` | No |
-| The setting (`engine`, `shadow`, `legend-lite`) | `LegendDataCubeBaseStore.settings`, beside the two debugger settings there | Yes |
+| Two settings giving three modes (`engine`, `shadow`, `legend-lite`) | `LegendDataCubeBaseStore.settings`, beside the two debugger settings there | Yes |
 | The routing rule (a pivot with no cast goes to the engine) | In the branch | Yes, temporary (G3) |
 | The model shim | Beside the planner client | Yes, temporary (G1, G2) |
 | The planner client and its worker | `legend-application-data-cube` | Yes |
-| The module (`classes.wasm`, its runtime, `planner-worker.js`) | Static assets, loaded on first use | Yes |
+| The module and its runtime (`classes.wasm`, `wasm-gc-module-runtime.js`) | Static assets, loaded on first use | Yes |
 | Plan deserialization and SQL extraction | `LegendDataCubeDataCubeEngine.ts:1071-1078` | No |
 | `runSQLQuery` and the conversion to a TDS result | `LegendDataCubeDuckDBEngine.ts` | No |
 | The comparison and its record | In the engine class, through DataCube's telemetry hooks | Yes |
@@ -288,17 +294,19 @@ The pieces, and where each lives:
 
 All in `packages/legend-application-data-cube`, plus asset wiring in its deployment package.
 
-1. **A planner client** (new, roughly 150 lines): starts a worker on legend-lite's `planner-worker.js`,
-   posts `{kind: 'pureV1', path, query, body}`, and unfolds the answer (`OK\n<status>\n<type>\n<body>`).
-   The three files it needs from legend-lite (`planner-worker.ts`, `planner-answer.ts`,
-   `planner-protocol.ts`) import nothing outside themselves and one guard file.
-2. **Assets:** `classes.wasm`, `wasm-gc-module-runtime.js` and `planner-worker.js` served from the app's
-   static folder. The shared webpack config already emits `.wasm` as a resource and the package already
-   loads DuckDB's worker with `new URL(..., import.meta.url)`, so no new mechanism is needed. Load the
-   module lazily: only when the setting is on and a DuckDB-backed source is opened.
-3. **A setting.** DataCube already has persisted settings with a reload flag
-   (`LegendDataCubeBaseStore.settings`, two entries today). Add one with three values: `engine` (default),
-   `shadow`, `legend-lite`.
+1. **A planner client and its worker** (new): a small worker, owned by legend-studio, loads the module from
+   the two URLs it is given and answers one `pure/v1` request per message. The client posts
+   `{path, query, body}` and unfolds the answer (`OK\n<status>\n<type>\n<body>`). legend-lite's own
+   `planner-worker.js` is not used: it finds the module by fixed file names beside a base URL, and
+   legend-studio's build emits assets under hashed names.
+2. **Assets:** two files from legend-lite, `classes.wasm` and `wasm-gc-module-runtime.js`, emitted by the
+   build. The shared webpack config already emits `.wasm` as a resource and the package already loads
+   DuckDB's worker with `new URL(..., import.meta.url)`, so no new mechanism is needed. Load the module
+   lazily: only when a setting is on and a DuckDB-backed source is opened.
+3. **Two settings.** DataCube already has persisted settings with a reload flag
+   (`LegendDataCubeBaseStore.settings`, two entries today). Add two boolean settings, both off by default,
+   giving three modes: `engine` (default), `shadow`, `legend-lite`. DataCube's settings have no enumerated
+   type, and adding one would change `legend-data-cube`, which Query also loads.
 4. **The branch.** In `_generateExecutionPlan`, when the setting says so, ask the planner for
    `/api/pure/v1/execution/generatePlan` with the same input object, and hand its body to the same
    `V1_deserializeExecutionPlan`. About ten lines.
@@ -323,7 +331,7 @@ None are required to start. These make the shim and the routing rule unnecessary
 3. **G5:** ask the engine whether `$x.col * 2` compiles on a nullable column, and match it.
 4. **G3:** for a DuckDB target, answer the cast-less pivot as one runnable statement in the
    engine-shaped plan.
-5. **G12:** publish the three files as a versioned artifact (phase 0).
+5. **G12:** publish the module and its runtime as a versioned artifact (phase 0).
 
 ### 7.3 Shadow mode, which is how the risk is retired
 
@@ -380,8 +388,8 @@ The engineering is small. What takes time is being sure the SQL means the same t
 ## 9. The later phases
 
 **Phase 0: packaging and a corpus (do first).**
-- legend-lite publishes `classes.wasm`, its runtime and `planner-worker.js` as one versioned artifact, with
-  a typed `pureV1(path, query, body)` client.
+- legend-lite publishes `classes.wasm` and its runtime as one versioned artifact, with types for the one
+  export a host calls (`pureV1OrError`).
 - A corpus lane in legend-lite built from legend-studio's own DataCube tests.
   `DataCubeQueryRoundtrip.data-cube-test.ts` is a 2,153-line suite whose cases are DataCube queries as
   Pure text, and CI there runs them against a live engine. Run each through `lambdaRelationType` and `generatePlan` and
