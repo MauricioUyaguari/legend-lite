@@ -1,7 +1,9 @@
 # Integrating legend-lite into legend-studio's apps: a proposal (2026-11-18)
 
-**Status:** proposed, not ratified. Nothing here is built. Section 10 lists the decisions that are the
-user's.
+**Status:** proposed, not ratified. Phase 1 is built and in two pull requests
+([neema2/legend-lite#120](https://github.com/neema2/legend-lite/pull/120) and
+[MauricioUyaguari/legend-studio#2](https://github.com/MauricioUyaguari/legend-studio/pull/2)); nothing is merged.
+Section 10 lists the decisions that are the user's.
 
 **Corrected on 2026-11-18**, after the first step was implemented
 ([`LEGEND_STUDIO_PHASE_1_IMPLEMENTATION_PLAN_2026_11_18.md`](LEGEND_STUDIO_PHASE_1_IMPLEMENTATION_PLAN_2026_11_18.md)).
@@ -156,8 +158,9 @@ over HTTP alike, unless noted):
 All run on 2026-11-18 in Node 25 against `bazel build //wasm:planner` from `main` at `4dfbb5b76`. On
 2026-11-19, after legend-lite moved these routes into its engine module, spikes 01, 02, 03, 05, 07 and 10 were
 run again against that module alone (`//wasm:engine_planner`, `main` at `b75d6c73a`) and gave the same results.
-Spikes 04 and 09 were not run again. Spikes 06 and 08 also call the planner module's held-model exports, which
-have since been renamed, so they do not run as written.
+Spikes 04 and 09 were not run again. Spikes 06 and 08 also call held-model exports (`planJsonHeldOrError`,
+`relationTypeHeldOrError`) that the planner module no longer exports under those names, so they do not run as
+written.
 
 | # | Experiment | Result |
 |---|---|---|
@@ -192,7 +195,7 @@ Each is a specific, reproducible refusal or difference. "Owner" says which repos
 | **G5** | Arithmetic on a nullable column is a compile error. Whether legend-engine accepts it was not checked. If it does, this is a compile gap that user-written extended columns will hit often | Spike 07; `Typer.java:1122` | legend-lite, after checking the engine | Unknown |
 | **G6** | Five routes DataCube calls answer 404 (section 3) | Spike 02 | legend-lite | Small each, except typeahead |
 | **G7** | The in-tab execute halves take only a text model the host serves | Spike 02; `HostAnswers.java:234` | legend-lite | Small |
-| **G8** | A model given as a pointer (project coordinates) is refused. DataCube's engine-backed sources send pointers | `ModelInput.java:89-100` | legend-lite | Large: needs Depot |
+| **G8** | A model given as a pointer (project coordinates) is refused. DataCube's engine-backed sources send pointers | `ModelInput.java:89-98` | legend-lite | Large: needs Depot |
 | **G9** | Errors carry no `sourceInformation`. A parse error's position is in the message text only; a compile error names the element in words. DataCube's editors place markers from `sourceInformation` | Spike 05 | legend-lite | Medium |
 | **G10** | Type names are plain (`String`, `Float`, `StrictDate`). The engine answers precise primitives for database columns. DataCube accepts both vocabularies, and treats an unknown name as text | Spike 04; `UpstreamRelationType.java` | None needed for phase 1 | |
 | **G11** | DuckDB versions differ: legend-studio pins `@duckdb/duckdb-wasm` 1.31.0; legend-lite is tested on 1.33.1-dev57 (DuckDB 1.5.4). legend-lite's SQL also assumes a UTC session; DataCube sets none | `package.json` of each | Both | See section 8 |

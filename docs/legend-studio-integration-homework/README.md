@@ -15,7 +15,7 @@ legend-lite's own operations. So:
 |---|---|---|
 | 01, 02, 03, 05, 07, 10 | `bazel-bin/wasm/engine_planner` | Run again on 2026-11-19: same results as before |
 | 04, 09 | `bazel-bin/wasm/engine_planner` | Not run again; they call only `pureV1OrError` |
-| 06, 08 | Neither, as written | They also call the planner module's held-model exports (`holdModelOrError`, `planJsonHeldOrError`), which have since been renamed, and their `pure/v1` calls are the engine module's. They would need both modules and the new names |
+| 06, 08 | Neither, as written | They also call held-model exports (`planJsonHeldOrError`, `relationTypeHeldOrError`) that the planner module no longer exports under those names, and their `pure/v1` calls are the engine module's. They would need both modules and the planner module's current exports |
 
 ## Running them
 
