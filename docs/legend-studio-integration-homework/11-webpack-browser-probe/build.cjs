@@ -1,11 +1,11 @@
 // Spike 11: builds main.js with legend-studio's own webpack, naming files as its production build does
 // (legend-dev-utils/WebpackConfigUtils.js), so the page can be served and `await window.probe()` run in a browser.
 //
-//   node build.cjs <legend-studio root, built> <planner package dir: bazel-bin/wasm/planner_package> <out dir>
+//   node build.cjs <legend-studio root, built> <package dir: bazel-bin/wasm/engine_planner_package> <out dir>
 //   python3 -m http.server 8791 --bind 127.0.0.1 --directory <out dir>
 //
 // What it shows: the worker and the runtime are emitted as files of their own (minified, not bundled), the module
-// under a hashed name, and nothing of the planner is fetched before the first request.
+// under a hashed name, and nothing of legend-lite is fetched before the first request.
 const path = require('path');
 const [studio, plannerPackage, out] = process.argv.slice(2).map((p) => path.resolve(p));
 const webpack = require(path.join(studio, 'node_modules/webpack'));

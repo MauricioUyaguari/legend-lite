@@ -9,6 +9,11 @@ Sections 7.0, 7.1, 7.2 and 9 first described one setting with three values and t
 was built has two boolean settings and two files from legend-lite, with the worker written in legend-studio.
 Section 7.1 says why.
 
+**Corrected again on 2026-11-19 and 2026-11-20.** legend-lite's `pure/v1` routes moved into an engine module of
+their own, so the package is that module; section 3 says so, and sections 4 and 5 give where the refusals are now
+raised and the module's size. And legend-lite's client became a subclass of `V1_EngineServerClient`; sections 7.0
+and 7.1 say so. The implementation plan has the details.
+
 **The question (the user, 2026-11-18):** the quickest path to integrate legend-lite into the apps of the
 legend-studio repository (Studio, Query, Taxonomy, Marketplace, DataCube), lowest risk first, reusing
 legend-lite's WebAssembly where possible. For example: use the wasm planner inside legend-studio's
@@ -118,8 +123,12 @@ module answering the same routes in a Web Worker, and a native library for Pytho
 [neema2/legend-lite#117](https://github.com/neema2/legend-lite/pull/117)).
 
 The export that matters here is `pureV1OrError(path, rawQuery, body)`: one legend-engine route, answered
-in-process by the code the server answers it with (`PureV1Api.route`). Its contract is legend-engine's API,
+in-process by the code the server answers it with (`PureV1Routes.route`). Its contract is legend-engine's API,
 which makes it the one stable surface of the module.
+
+Since 2026-11-18 the WebAssembly build is two modules. The planner module (`//wasm:planner`) answers
+legend-lite's own operations and has no legend-engine route. The engine module (`//wasm:engine_planner`) has
+`pureV1OrError` and execute's halves, and loads on its own. Everything in this proposal uses the engine module.
 
 **The routes legend-studio's DataCube calls, against what legend-lite answers** (through the module and
 over HTTP alike, unless noted):
@@ -144,7 +153,11 @@ over HTTP alike, unless noted):
 
 ## 4. What the spikes showed
 
-All run on 2026-11-18 in Node 25 against `bazel build //wasm:planner` from `main`.
+All run on 2026-11-18 in Node 25 against `bazel build //wasm:planner` from `main` at `4dfbb5b76`. On
+2026-11-19, after legend-lite moved these routes into its engine module, spikes 01, 02, 03, 05, 07 and 10 were
+run again against that module alone (`//wasm:engine_planner`, `main` at `b75d6c73a`) and gave the same results.
+Spikes 04 and 09 were not run again. Spikes 06 and 08 also call the planner module's held-model exports, which
+have since been renamed, so they do not run as written.
 
 | # | Experiment | Result |
 |---|---|---|
@@ -173,18 +186,18 @@ Each is a specific, reproducible refusal or difference. "Owner" says which repos
 | # | Gap | Evidence | Owner | Size |
 |---|---|---|---|---|
 | **G1** | The model reader requires `postProcessorWithParameter` on a relational connection. legend-studio's serializer omits empty arrays, so it is never sent | Spike 03; `ConnectionReader.java:138` | legend-lite | Small |
-| **G2** | `generatePlan` refuses a connection embedded in the runtime. DataCube embeds it and emits no connection element | Spike 03; `PureV1Api.java:1184` | legend-lite | Small |
+| **G2** | `generatePlan` refuses a connection embedded in the runtime. DataCube embeds it and emits no connection element | Spike 03; `PureV1Routes.java:539` | legend-lite | Small |
 | **G3** | A pivot with no cast is a two-statement plan in legend-lite (keys first, then the body per key). In the engine-shaped plan its `sqlQuery` is not runnable. DataCube runs exactly this query, with `limit 0`, to discover the pivot's columns | Spike 05; register S110 | Either | Medium |
 | **G4** | The `last()` aggregate fails: `an instance literal has no row scope for $x` | Spike 05 | legend-lite | Small to medium |
 | **G5** | Arithmetic on a nullable column is a compile error. Whether legend-engine accepts it was not checked. If it does, this is a compile gap that user-written extended columns will hit often | Spike 07; `Typer.java:1122` | legend-lite, after checking the engine | Unknown |
 | **G6** | Five routes DataCube calls answer 404 (section 3) | Spike 02 | legend-lite | Small each, except typeahead |
-| **G7** | The in-tab execute halves take only a text model the host serves | Spike 02; `PureV1Api.java:1255` | legend-lite | Small |
+| **G7** | The in-tab execute halves take only a text model the host serves | Spike 02; `HostAnswers.java:234` | legend-lite | Small |
 | **G8** | A model given as a pointer (project coordinates) is refused. DataCube's engine-backed sources send pointers | `ModelInput.java:89-100` | legend-lite | Large: needs Depot |
 | **G9** | Errors carry no `sourceInformation`. A parse error's position is in the message text only; a compile error names the element in words. DataCube's editors place markers from `sourceInformation` | Spike 05 | legend-lite | Medium |
 | **G10** | Type names are plain (`String`, `Float`, `StrictDate`). The engine answers precise primitives for database columns. DataCube accepts both vocabularies, and treats an unknown name as text | Spike 04; `UpstreamRelationType.java` | None needed for phase 1 | |
 | **G11** | DuckDB versions differ: legend-studio pins `@duckdb/duckdb-wasm` 1.31.0; legend-lite is tested on 1.33.1-dev57 (DuckDB 1.5.4). legend-lite's SQL also assumes a UTC session; DataCube sets none | `package.json` of each | Both | See section 8 |
 | **G12** | Nothing is published. Every `package.json` is private and no workflow uploads the module. There is no versioning policy for the exports | Section 7 of the investigation | legend-lite | Small |
-| **G13** | The module is 9.2 MB (3.4 MB gzip, 2.5 MB brotli), not the 4.2 MB `wasm/README.md` states | Measured 2026-11-18 | Documentation | |
+| **G13** | The module is 9.3 MB (3.45 MB gzip), not the 4.2 MB `wasm/README.md` states | The engine module, measured 2026-11-19 | Documentation | |
 
 Not gaps, though they looked like ones:
 
@@ -283,8 +296,8 @@ The pieces, and where each lives:
 | The input (`function`, `model`, `context`, `parameterValues`, `clientVersion`) | `_generateExecutionPlan`, `LegendDataCubeDataCubeEngine.ts:1718` | No |
 | Two settings giving three modes (`engine`, `shadow`, `legend-lite`) | `LegendDataCubeBaseStore.settings`, beside the two debugger settings there | Yes |
 | The routing rule (a pivot with no cast goes to the engine) | In the branch | Yes, temporary (G3) |
-| The model shim | Beside the planner client | Yes, temporary (G1, G2) |
-| The planner client and its worker | `legend-application-data-cube` | Yes |
+| The model shim | In legend-lite's client | Yes, temporary (G1, G2) |
+| legend-lite's client, a subclass of `V1_EngineServerClient`, and its worker | `legend-application-data-cube` | Yes |
 | The module and its runtime (`classes.wasm`, `wasm-gc-module-runtime.js`) | Static assets, loaded on first use | Yes |
 | Plan deserialization and SQL extraction | `LegendDataCubeDataCubeEngine.ts:1071-1078` | No |
 | `runSQLQuery` and the conversion to a TDS result | `LegendDataCubeDuckDBEngine.ts` | No |
@@ -294,11 +307,13 @@ The pieces, and where each lives:
 
 All in `packages/legend-application-data-cube`, plus asset wiring in its deployment package.
 
-1. **A planner client and its worker** (new): a small worker, owned by legend-studio, loads the module from
-   the two URLs it is given and answers one `pure/v1` request per message. The client posts
-   `{path, query, body}` and unfolds the answer (`OK\n<status>\n<type>\n<body>`). legend-lite's own
-   `planner-worker.js` is not used: it finds the module by fixed file names beside a base URL, and
-   legend-studio's build emits assets under hashed names.
+1. **legend-lite's client and its worker** (new). The client is a subclass of `V1_EngineServerClient` that
+   overrides `request()`, the one method every method of that class ends in, to ask the engine module instead
+   of a server. Every method keeps its name, input, output and errors (`NetworkClientError`), and nothing is
+   ever sent to a server. Under it, a small worker, owned by legend-studio, loads the module from the two URLs
+   it is given and answers one `pure/v1` request per message. legend-lite's own `planner-worker.js` is not
+   used: it finds the module by fixed file names beside a base URL, and legend-studio's build emits assets
+   under hashed names.
 2. **Assets:** two files from legend-lite, `classes.wasm` and `wasm-gc-module-runtime.js`, emitted by the
    build. The shared webpack config already emits `.wasm` as a resource and the package already loads
    DuckDB's worker with `new URL(..., import.meta.url)`, so no new mechanism is needed. Load the module
@@ -307,9 +322,9 @@ All in `packages/legend-application-data-cube`, plus asset wiring in its deploym
    (`LegendDataCubeBaseStore.settings`, two entries today). Add two boolean settings, both off by default,
    giving three modes: `engine` (default), `shadow`, `legend-lite`. DataCube's settings have no enumerated
    type, and adding one would change `legend-data-cube`, which Query also loads.
-4. **The branch.** In `_generateExecutionPlan`, when the setting says so, ask the planner for
-   `/api/pure/v1/execution/generatePlan` with the same input object, and hand its body to the same
-   `V1_deserializeExecutionPlan`. About ten lines.
+4. **The branch.** In `_generateExecutionPlan`, when the setting says so, call `generatePlan` with the same
+   input object on legend-lite's client instead of the engine's, and hand its answer to the same
+   `V1_deserializeExecutionPlan`.
 5. **A temporary shim** for G1 and G2, until legend-lite fixes them: before sending, move the embedded
    connection into its own `connection` element, point the runtime at it, and add
    `postProcessorWithParameter: []`. A pure JSON transform of about 20 lines, verified by spike 04.

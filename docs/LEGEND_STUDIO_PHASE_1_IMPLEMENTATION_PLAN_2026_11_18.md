@@ -1,12 +1,15 @@
 # Phase 1 implementation plan: DataCube's `generatePlan` answered in the tab (2026-11-18)
 
-**Status:** M0 to M3 are written, checked and in draft pull requests ([Progress](#progress)). M2 and M3 ran in the
-DataCube app against a real engine. M4's wider checks and M5 are not started. It implements phase 1 of
+**Status:** M0 to M3 are written, checked and in pull requests ([Progress](#progress)). M2 and M3 ran in the
+DataCube app against a real engine. M4's wider checks and M5 are not started. Two things changed after this plan
+was written, and the milestones below describe the plan, not what was built:
+[Changes since this plan](#changes-since-this-plan). It implements phase 1 of
 [`LEGEND_STUDIO_INTEGRATION_PROPOSAL_2026_11_18.md`](LEGEND_STUDIO_INTEGRATION_PROPOSAL_2026_11_18.md)
 (its section 7). Section 2 lists where reading the code changed that proposal.
 
 **Read against:** legend-studio at `c40833edd`, legend-lite `main` at `4dfbb5b76`. File and line references
-are to those commits.
+are to those commits, except in [Progress](#progress) and [Changes since this plan](#changes-since-this-plan),
+which are against legend-lite `main` at `b75d6c73a` and legend-studio `finos/master` at `74e6f1d47`.
 
 **Goal:** for a cached source, a local file or a cached Iceberg table, the SQL DataCube runs on its own
 DuckDB-WASM comes from legend-lite's planner in the tab, behind settings that are off by default, with a
@@ -15,6 +18,7 @@ shadow mode that compares the two planners before anyone relies on the new one.
 ## Contents
 
 - [Progress](#progress)
+- [Changes since this plan](#changes-since-this-plan)
 - [1. What gets built](#1-what-gets-built)
 - [2. What reading the code changed](#2-what-reading-the-code-changed)
 - [3. Milestones](#3-milestones)
@@ -33,19 +37,22 @@ shadow mode that compares the two planners before anyone relies on the new one.
 
 ## Progress
 
-As of 2026-11-18. Two draft pull requests hold the work:
+As of 2026-11-20. Two pull requests hold the work:
 
-- **M0:** [neema2/legend-lite#120](https://github.com/neema2/legend-lite/pull/120)
-- **M1 to M3:** [MauricioUyaguari/legend-studio#2](https://github.com/MauricioUyaguari/legend-studio/pull/2), on the
-  fork and not against `finos/legend-studio`, because it cannot build until the planner package is published
-  (decision 1). Its base branch is `finos/master` at `74e6f1d47`.
+- **M0:** [neema2/legend-lite#120](https://github.com/neema2/legend-lite/pull/120), ready for review, rebased onto
+  `main` at `b75d6c73a`.
+- **M1 to M3:** [MauricioUyaguari/legend-studio#2](https://github.com/MauricioUyaguari/legend-studio/pull/2), a
+  draft on the fork and not against `finos/legend-studio`, because it cannot build until the package is published
+  (decision 1). Its base branch is `finos/master` at `74e6f1d47`. Three commits: the feature, then the two
+  restructures described in [Changes since this plan](#changes-since-this-plan).
 
 | | State | Where | Checked by |
 |---|---|---|---|
-| M0 | Written | legend-lite, branch `feat/planner-wasm-package` (worktree `.claude/worktrees/planner-wasm-package`): `//wasm:planner_package`, `wasm/npm/`, `wasm/planner_package.mjs` | `bazel test //wasm:planner_package_test` passes: every file `package.json` names is in the package, and the module loaded through the package's entry answers a `pure/v1` route |
-| M1 | Written | legend-studio, branch `datacube-legend-lite-planner` off `finos/master` at `74e6f1d47` (worktree `.claude/worktrees/datacube-legend-lite-planner`): `stores/planner/` and a changeset | Type check and lint of the package clean; 18 unit tests pass; the copyright check passes; spike 11, below |
-| M2 | Written | The same legend-studio branch: `stores/planner/LegendLitePlannerRequest.ts`, the engine class, the base store, one setting key | Type check clean; 36 unit tests for the planner files pass (130 across the package's store tests); ran in the DataCube app, below. One lint error stands: the planner package is not a declared dependency (decision 1) |
-| M3 | Written | The same legend-studio branch: `stores/planner/LegendLitePlannerShadow.ts`, the engine class, the base store, a second setting key, five events | Type check clean; 60 unit tests for the planner files pass (159 across the package's store tests); ran in the DataCube app, below |
+| M0 | Written | legend-lite, branch `feat/planner-wasm-package` (worktree `.claude/worktrees/planner-wasm-package`): `//wasm:engine_planner_package`, `wasm/npm/`, `wasm/engine_planner_package.mjs`. Built from the engine module (`//wasm:engine_planner`): 9.34 MB raw, 3.45 MB gzipped | 22 tests pass: `//wasm:engine_planner_package_test` (every file `package.json` names is in the package, and the module loaded through the package's entry answers a `pure/v1` route), `//wasm:engine_routes_test`, `//tools/deps/...` and `//tools/js/...`. `//gates:local` was not run |
+| M1 | Written | legend-studio, branch `datacube-legend-lite-planner` off `finos/master` at `74e6f1d47` (worktree `.claude/worktrees/datacube-legend-lite-planner`): `stores/planner/LegendLiteEngineClient.ts`, `LegendLiteEngineTransport.ts`, `LegendLiteEngine.worker.ts`, `LegendLiteEngineAssets.ts`, and a changeset | Type check clean; the copyright check passes; spike 11, below |
+| M2 | Written | The same legend-studio branch: `stores/planner/LegendDataCubePlannerMode.ts`, the engine class, the base store, one setting key | Ran in the DataCube app, below |
+| M3 | Written | The same legend-studio branch: `stores/planner/LegendLitePlannerShadow.ts`, the engine class, the base store, a second setting key, five events | Ran in the DataCube app, below |
+| M1 to M3 | | | 71 unit tests for `stores/planner/` pass, 165 across the package's store tests. One lint error stands: the package is not a declared dependency (decision 1) |
 | M4 | Partly done | | The app runs under M2 and M3 below are M4's steps 1 to 4, in one browser. A production build, other browsers, a cached source and an Iceberg table are not done |
 | M5 | Not started | | |
 
@@ -57,6 +64,12 @@ legend-studio's webpack, naming files as its production build does, and ran it i
   module.
 - `grammarToJson/lambda` answered 200 in 104 ms, module load included. `generatePlan` answered 200 with the SQL:
   182 ms the first time, 13 ms the second.
+
+Re-run on 2026-11-20 with the engine module and the client as it is now (a `V1_EngineServerClient`): an
+inherited method (`grammarToJSON_lambda`) parsed a lambda; `generatePlan` with DataCube's embedded model answered
+with SQL, 205 ms the first time and 7 ms the second; a refused request was a `NetworkClientError` with status 500
+and legend-lite's message; a route legend-lite does not have was a `NetworkClientError` with status 404; no request
+went to a server.
 
 Two things it showed that the plan did not say:
 
@@ -124,9 +137,68 @@ What M3 settled against the plan:
   and may name a column.
 - **The record does not carry the planner's version.** The package exposes none yet (M0).
 
-What M0 settled against the plan: the package is a directory (`bazel-bin/wasm/planner_package`), laid out by
+What M0 settled against the plan: the package is a directory (`bazel-bin/wasm/engine_planner_package`), laid out by
 `copy_to_directory`, not a tarball; its `package.json` is `private`, so it cannot be published by accident; its
 version is the fixed `0.1.0`, with no commit in it yet.
+
+---
+
+## Changes since this plan
+
+Two changes, after M0 to M3 were first written. Neither changes what DataCube does. Sections 1 to 7 below are
+the plan as written on 2026-11-18; where they differ from this section, this section is what was built.
+
+### The package holds the engine module (2026-11-19)
+
+legend-lite's edge program ([neema2/legend-lite#118](https://github.com/neema2/legend-lite/pull/118), the K2 ruling "product root, edge opt-in") moved legend-engine's routes out of
+the planner module. On `main` at `b75d6c73a`:
+
+- `//wasm:planner`, the product module, answers legend-lite's own operations and has no `pureV1OrError`.
+- `//wasm:engine_planner`, the engine module (`com.legend.edge.wasm.EngineExports`), has `pureV1OrError` and
+  execute's halves, and nothing else. It loads and answers on its own, with no product module beside it.
+
+So M0 packages the engine module: `//wasm:engine_planner_package`, 9.34 MB raw and 3.45 MB gzipped, about the
+size of the old module. The npm name stays `@legend-lite/planner-wasm`, so legend-studio's imports did not change.
+
+On the engine module alone, spikes 03 and 10 give what they gave before: DataCube's exact model is refused for
+the same two reasons (G1 and G2), and with the shim 10 of 12 DataCube-shaped queries plan, 1 is kept on the
+engine by the routing rule and 1 fails (`last()`). Where the refusals are raised:
+
+| Gap | Was | Now |
+|---|---|---|
+| G1 | `ConnectionReader.java:138` | Unchanged |
+| G2 | `server/PureV1Api.java:1184` | `edge/PureV1Routes.java:539` |
+| G7 | `server/PureV1Api.java:1255` | `edge/HostAnswers.java:234` (`jsonPlan`) |
+
+### legend-lite's client is an engine server client (2026-11-20)
+
+M1 was a transport with one raw method, `pureV1(path, query, body)`. It is now three layers:
+
+| Layer | File | What it is |
+|---|---|---|
+| Engine client | `LegendLiteEngineClient.ts` | A subclass of `V1_EngineServerClient` that overrides `request()`, the one method every method of that class ends in, to ask the engine module instead of a server |
+| Transport | `LegendLiteEngineTransport.ts` (was `LegendLitePlannerClient.ts`) | The worker, matching answers by id, the answer format. It knows no route |
+| Worker and assets | `LegendLiteEngine.worker.ts`, `LegendLiteEngineAssets.ts` (were `LegendLitePlanner.worker.ts`, `LegendLitePlannerAssets.ts`) | Unchanged but for names |
+
+What that changed elsewhere:
+
+- **DataCube's engine class** asks either client the same way: `generatePlan(input)` on one instance or the
+  other. It names legend-lite in the message when legend-lite is the one that failed.
+- **The shim** (G1, G2) is applied in the client's `request()` for `generatePlan`, so callers send what they
+  would send the engine server.
+- **The mode and the routing rule** (G3) are in `LegendDataCubePlannerMode.ts` (was part of
+  `LegendLitePlannerRequest.ts`). Choosing a planner is DataCube's decision, so it is not in the client.
+- **A refusal is a `NetworkClientError`**, as the engine server client throws, with the same payload. A route
+  legend-lite does not have fails the same way, with a 404. Shadow mode records a refusal with its status as its
+  kind.
+- **Nothing is ever sent to a server.** The client's `request()` does not reach the network, and nothing falls
+  back to the engine server.
+- **The client ignores** compression, credentials, tracing and aborting a request: they only make sense for a
+  server.
+
+The client inherits methods legend-lite does not answer. They fail clearly, but the type alone does not say which
+routes work. It stays in the DataCube package: `legend-graph` is loaded by every app, and the client needs the
+worker and the package.
 
 ---
 
@@ -134,6 +206,8 @@ version is the fixed `0.1.0`, with no commit in it yet.
 
 All legend-studio changes are in `packages/legend-application-data-cube`. Nothing in `legend-data-cube`,
 `legend-graph` or `legend-query-builder` changes, so Query, Studio, Marketplace and the REPL are untouched.
+
+*The table is as planned. The files as built are in [Changes since this plan](#changes-since-this-plan).*
 
 | File (under `packages/legend-application-data-cube/src`) | New? | What it is |
 |---|---|---|
@@ -194,6 +268,8 @@ Each lands on its own and leaves DataCube behaving as today until a setting is t
 
 ### M0. The planner as a package (legend-lite)
 
+*As planned. The package now holds the engine module: [Changes since this plan](#changes-since-this-plan).*
+
 **Why first:** legend-studio's build resolves `@scope/package/file` paths; it cannot reach into
 `bazel-bin`.
 
@@ -210,6 +286,10 @@ Each lands on its own and leaves DataCube behaving as today until a setting is t
 Publishing it (which registry, which scope, who releases) is decision 1 in section 6.
 
 ### M1. The planner client (legend-studio, nothing calls it)
+
+*As planned. The code below is superseded by the client in
+[MauricioUyaguari/legend-studio#2](https://github.com/MauricioUyaguari/legend-studio/pull/2), a subclass of
+`V1_EngineServerClient`: [Changes since this plan](#changes-since-this-plan).*
 
 **The worker** (`LegendLitePlanner.worker.ts`). Self-contained: no imports, so it can be emitted as a file
 and started as a module worker.
@@ -279,6 +359,9 @@ assets file.
 the client yet.
 
 ### M2. The legend-lite mode (legend-studio, off by default)
+
+*As planned. The shim now lives in the client's `request()`, and the mode and routing rule in
+`LegendDataCubePlannerMode.ts`: [Changes since this plan](#changes-since-this-plan).*
 
 **The request helpers** (`LegendLitePlannerRequest.ts`). Both are the functions spike 10 ran.
 
@@ -402,7 +485,7 @@ In parallel with M1 to M4; none blocks them.
 | Gap | Change | Removes |
 |---|---|---|
 | G1 | The connection reader accepts an absent `postProcessorWithParameter` (`ConnectionReader.java:138`) | Half the shim |
-| G2 | `generatePlan` plans over a runtime's embedded relational connection (`PureV1Api.java:1184`). The refusal says upstream's answer is unprobed, so the engine is asked first, as legend-lite's rules require | The shim |
+| G2 | `generatePlan` plans over a runtime's embedded relational connection (`PureV1Routes.java:539` on `b75d6c73a`). The refusal says upstream's answer is unprobed, so the engine is asked first, as legend-lite's rules require | The shim |
 | G4 | The `last()` aggregate | A user-visible refusal |
 | G3 | The cast-less pivot as one runnable statement for a DuckDB target | The routing rule |
 | G5 | Ask the engine whether arithmetic on a nullable column compiles, and match it | A possible compile difference |
@@ -460,11 +543,14 @@ legend-studio sends fails there.
 
 ## 7. What this plan has not verified
 
-- **M1 was run in a browser through a probe page, not through the DataCube app** (spike 11). The app's own
-  build, its deployment's server and its content security policy are untested until M4. The settings and the
-  engine class's changes (M2, M3) follow from reading the code and are not written.
-- **One browser.** The probe ran in Chrome 156. Firefox and Safari are M4's.
-- **No SQL was executed and no engine was consulted**, as in the proposal. M4 is where that happens.
+*Updated 2026-11-20 for what has since been run.*
+
+- **The app was run in its dev build only.** A production build, its deployment's server and its content
+  security policy are untested.
+- **One browser.** Everything ran in Chrome 156. Firefox and Safari are M4's.
+- **Few query shapes against the engine.** The opening page, a sort, a horizontal pivot and a group by over the
+  pivot were compared with the engine's result on one 60-row file, all equal. Only the opening page was repeated
+  after the client became an engine server client.
 - **Spike 10 ran in Node 25**, with lambdas parsed by legend-lite, not built by DataCube.
-- **M0's target was tested alone.** `//gates:local` was not run on the branch, so whether another guard in
-  legend-lite needs a row for the new target or its files is not known.
+- **`//gates:local` was not run on M0's branch.** Its own test, the engine module's route test and the dependency
+  and tooling guards were.
