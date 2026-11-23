@@ -54,18 +54,22 @@ The first calls are the three that turn a model into text and back and decide wh
 Everything else stays on the engine server. The set of local calls grows one call at a time, as each is shown to
 answer as the engine does.
 
-A deployment turns local mode on in its configuration and registers the plugin. The first deployment is an internal
-test environment.
+A deployment turns local mode on in its configuration and registers the plugin. The first deployment is a test
+environment.
 
 ## 2. Decisions and proposals
 
-### 2.1 Ruled by the user on 2026-11-23
+### 2.1 The user's direction, 2026-11-23
 
-| # | Question | Ruling |
+The user proposed these and asked for challenges. They stand until ruled; 2.2 refines them. Row 4 is this
+plan's reading of "merge the two": the flag and the project check, the user's two first ideas. Row 5 carries over
+the answer given for text mode.
+
+| # | Question | Direction |
 |---|---|---|
 | 1 | What moves | Engine API calls, wherever Studio makes them, not one feature. First parse, compose and compile; more as confidence grows |
 | 2 | How a deployment turns it on | A flag in Studio's configuration ("use local if provided"), plus the plugin that provides the local engine |
-| 3 | Phase 1 | An internal test deployment with the flag on and legend-lite loaded, used for a while |
+| 3 | Phase 1 | A test deployment with the flag on and legend-lite loaded, used for a while |
 | 4 | Phase 2 | Combine the flag with a check: a session uses local mode once the project passes compile |
 | 5 | When the local engine fails during a session | Show its parse and compile errors. When it refuses something it does not support, rerun that call on the engine and stay on the engine for the rest of the session. This departs from the DataCube step's rule that a failure is never retried on the engine |
 | 6 | How it reaches a deployment | Through the published packages. A deployment that builds Studio from the published `@finos` packages can use only a hook that is merged and released. legend-lite's packages are not on a public registry, so the deployment publishes them itself and loads legend-lite through a plugin it registers |
@@ -73,18 +77,23 @@ test environment.
 
 ### 2.2 Proposed here, for the user to rule
 
-Each of these refines a ruling above. Sections 5 to 7 give the details.
+Each of these refines the direction above. Sections 5 to 7 give the details.
 
 - **P1. The set of local calls is configuration, not code.** The plugin declares which calls it answers. The
   deployment's configuration lists which of them go local. Studio routes a call locally only if both say so. Adding a
   call is then a configuration change plus legend-lite's support, with no Studio release. Under this, the plugin
   doesn't have to implement a fixed set of three; legend-lite's will implement all three.
-- **P2. Compile joins after two fixes.**
+- **P2. Compile is not ready, so phase 1's first set is a choice.**
   - Today legend-lite refuses any compile request that includes the project's dependencies (T1). That is almost
     every real project.
   - Its compile errors also don't return the `sourceId` that form mode uses to place them (T12). A form-mode compile
     error would therefore send the user to text mode every time.
-  - Phase 1 starts with parse and compose, and compile is added by configuration once T1 and T12 land.
+  - Parse and compose need fixes too, but fewer: T2 to T5 (4.7 shows why).
+  - So the user chooses:
+    - **(a)** start phase 1 with parse and compose once they are ready, and add compile by configuration once T1
+      and T12 land;
+    - **(b)** wait, and start with all three.
+  - (a) starts sooner, but runs the mixed path 4.7 measures: legend-lite parses, the engine compiles.
 - **P3. Parse and compose are turned on together.** Text mode composes the model and parses it back. One
   implementation doing both keeps that round trip consistent.
 - **P4. Each user can turn local mode off.** A switch in the Dev Tool panel, remembered in the browser, lets a tester
@@ -98,8 +107,8 @@ Each of these refines a ruling above. Sections 5 to 7 give the details.
 - **P6. "Passes compile" means passes locally and agrees with the engine.** Phase 2's check runs on the first compile
   the engine passes in the session. A project that does not compile yet stays on the engine until it does.
 - **P7. "If provided" includes "the browser can run it".** Studio checks before the first local call that a plugin is
-  registered, the browser supports WebAssembly GC (Chrome and Edge 119, Firefox 120, Safari 18.2) and the module
-  loads. If not, the session uses the engine. This is a capability check made once, not a retry after an error.
+  registered, the browser supports WebAssembly GC, which the module needs, and the module loads. Node 20 refuses
+  the module (the homework); which browser versions run it is to be checked. If not, the session uses the engine. This is a capability check made once, not a retry after an error.
 
 ## 3. The three calls in Studio today
 
@@ -263,6 +272,19 @@ Against a warm local engine, legend-lite parses about 3 times faster, composes a
 about 4 times slower. A deployed engine adds the network, plus an upload of the whole project and its dependencies on
 every compile. The module adds a one-time download of 9.3 MB.
 
+### 4.7 Each one's JSON in the other
+
+Local mode mixes the two whenever only some calls are local, and whenever a local call reads JSON the engine wrote, as
+stored entities are (`mixed.mjs`):
+
+| Path | Where Studio takes it | Result |
+|---|---|---|
+| legend-lite parses, the engine compiles the JSON | Text mode's compile, with parse local and compile on the server | 132 of 133 compile. On `CORE-function-test-variants`, the engine fails with a 500 (`ClassCastException`) on legend-lite's `minus(3)` (4.2); on its own JSON it compiles |
+| The engine's JSON, composed by legend-lite, `PRETTY` and `STANDARD` alike | Text Studio's load and the diff views, which compose stored entities | 126 of 133 identical to the engine's text. The three function-test cases fail with a 500: legend-lite can't read the engine's newer test-data shape (`_type` and `elementPointer`). The four connection cases write the engine's quoted `timeZone` as `'\'UTC\''` |
+
+So even parse and compose need the JSON aligned first. The engine must read whatever legend-lite writes (T4). And
+legend-lite must read, and compose like the engine, whatever the deployment's engine wrote into the project (T5).
+
 ## 5. The gaps
 
 Each gap is in legend-lite unless the table says otherwise. "Blocks" names the call that can't go local until the gap
@@ -274,8 +296,8 @@ is closed.
 | T12 | Compile errors return the failing expression's `sourceInformation` from the request: its `sourceId` and position, as the engine does. This also covers S400's element-level positions | 4.5 | Compile (form mode) |
 | T2 | Parse errors carry `sourceInformation` in the engine's shape | 4.3 | Parse (the cursor on a syntax error) |
 | T3 | Mark refusals in the error answer: "not supported", and the ledgered cases where legend-lite rejects what the engine accepts (S21). Until then, ruling 5's rerun can't fire, and every local failure is shown as it is | 4.3 | All three (ruling 5) |
-| T4 | Measure whether 4.2's differences change Studio's hashes. Check that the engine reads legend-lite's JSON, since that JSON is committed | 4.2, 3.3 | Parse |
-| T5 | Target the engine version the deployment runs. Rerun 4.1 and 4.2 against it, then align or ledger every difference | 4.2 | Parse, compose |
+| T4 | Write the engine's JSON. The engine must read whatever legend-lite writes, because it is committed and the server compiles it; today `minus(3)` crashes the engine's compile. And measure whether any remaining difference changes Studio's hashes | 4.2, 4.7, 3.3 | Parse |
+| T5 | Target the engine version the deployment runs: read every shape it writes, and compose it as it does. Today legend-lite can't read its function-test data, and it re-quotes its `timeZone`. Rerun 4.1, 4.2 and 4.7 against it, then align or ledger every difference | 4.2, 4.7 | Parse, compose |
 | T6 | The deployment's real projects, dependency closures and sections, measured inside the deployment (a script; only counts leave) | none yet | All three, for that deployment |
 | T8 | Error wording: legend-engine's words, or a ledgered difference | 4.3 | None (quality) |
 | T9 | `###GraphQL`, and any other section the deployment's projects use. A missing section is a refusal once T3 lands | 4.1 | None (refused, then rerun) |
@@ -459,9 +481,9 @@ None of it carries text, JSON or element paths. An optional sampled comparison i
 
 ```mermaid
 flowchart LR
-    P0["Phase 0<br/>legend-lite: T1, T12, T2, T3,<br/>T4 and T5; packages"] --> P1
+    P0["Phase 0<br/>legend-lite: T2 to T5, then T1 and T12;<br/>packages"] --> P1
     PR1["legend-studio PR 1<br/>local mode, released"] --> P1
-    P1["Phase 1<br/>internal deployment, mode on<br/>parse and compose, then compile"] --> P2
+    P1["Phase 1<br/>test deployment, mode on<br/>parse and compose, then compile"] --> P2
     PR2["legend-studio PR 2<br/>mode auto, released"] --> P2
     P2["Phase 2<br/>mode auto<br/>for every user of that deployment"] --> P3["Phase 3<br/>more calls, one at a time<br/>by configuration"]
     P3 --> P4["Phase 4<br/>more deployments"]
@@ -469,9 +491,9 @@ flowchart LR
 
 | Phase | Work | Exit |
 |---|---|---|
-| **0. legend-lite ready** | T1 and T12, which compile needs. T2 and T3. T4 and T5 against the deployment's engine version. T11. Lanes in legend-lite: Studio's round trip through the module, the dependency request, form mode's `sourceId`, the error shapes. The packages: the module, the worker client, the Studio plugin and its guide, published by the deployment | A project with dependencies compiles. Form-mode errors carry the request's `sourceId`. Parse errors place the cursor. Refusals are marked. No JSON difference that moves a hash, or that the engine can't read, is left |
+| **0. legend-lite ready** | **For parse and compose:** T2, T3, T4 and T5, against the deployment's engine version. T11. Lanes in legend-lite: Studio's round trip through the module, each one's JSON in the other (4.7), the error shapes. The packages: the module, the worker client, the Studio plugin and its guide, published by the deployment. **For compile:** T1 and T12, and lanes for the dependency request and form mode's `sourceId` | **Parse and compose ready:** parse errors place the cursor, refusals are marked, and no JSON difference is left that the engine can't read or that moves a hash. **Compile ready:** a project with dependencies compiles, and form-mode errors carry the request's `sourceId` |
 | **PR 1 (legend-studio)** | The hook and contract (6.2), the configuration (6.3), the routing in the engine client (6.4), the Dev Tool switch, the refusal handling (6.5), the telemetry (6.7), a guide to writing a local engine plugin, tests. Released | Released in `@finos/legend-graph` and `@finos/legend-application-studio`. legend-lite's plugin builds against the release |
-| **1. Internal deployment, mode `on`** | Upgrade to the release. Register the plugin and serve the module. Set `mode: on` with parse and compose; add compile's route once T1 and T12 are released in legend-lite. Testers use Studio as usual | Over an agreed period: entering and leaving text mode without edits leaves no local change; no committed JSON the engine rejects; no verdict the pipeline contradicts; refusals counted by kind; times known on real projects |
+| **1. A test deployment, mode `on`** | Upgrade to the release. Register the plugin and serve the module. Set `mode: on`: with parse and compose, then compile's route once compile is ready (P2 (a)), or all three once all are ready (P2 (b)). Testers use Studio as usual | Over an agreed period: entering and leaving text mode without edits leaves no local change; no committed JSON the engine rejects; no verdict the pipeline contradicts; refusals counted by kind; times known on real projects |
 | **PR 2 (legend-studio)** | `mode: auto` and the project check (6.6). It can start during phase 1 | Released |
 | **2. That deployment, mode `auto`** | Every user of the deployment. Local mode where the project passes | The agreement rate on real projects is known and high, and no wrong verdict is reported |
 | **3. More calls** | One call at a time, each first proven in a legend-lite lane, then added to `routes` | Each call's own measurements in that deployment |
@@ -531,4 +553,7 @@ design benefits from what phase 1 shows. Each needs a release, but PR 2's releas
 - **Warnings.** Whether legend-lite returns the engine's compile warnings (deprecations, for example) was not
   checked.
 - **Any Studio code.** The hook, the configuration and the routing are a design, not code.
+- **Where the cut sits.** Studio's engine client compresses request bodies (`enableCompression`). Reading the code,
+  this happens in legend-shared's `NetworkClient`, after the server client's `request()`. So a cut in `request()`
+  sees the uncompressed body. This was read, not run.
 - **Timings with dependencies** (4.4 stopped them), in a browser, or against a deployed engine.

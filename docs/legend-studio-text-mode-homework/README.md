@@ -8,6 +8,8 @@ These are the evidence for section 4 of [`../LEGEND_STUDIO_TEXT_MODE_PLAN_2026_1
 | `probe.mjs` | Studio text mode's three routes, the module against a real engine: parse with positions on every Studio case, error answers, a compile with a dependency as Studio sends it, timings |
 | `probe-output.txt` | `probe.mjs`'s output on 2026-11-23 |
 | `sourceid.mjs` | Form mode's compile: a derived property's lambda carries Studio's `sourceId` (`model::A@derivedProperty@upper@u1`) and an error. Does the compile error return that `sourceId`, as form mode needs to place it? |
+| `mixed.mjs` | Each one's JSON in the other: legend-lite's parse JSON compiled by the engine (local parse with compile on the server), and the engine's JSON composed by legend-lite, `PRETTY` and `STANDARD` (stored entities composed locally) |
+| `mixed-output.txt` | `mixed.mjs`'s output on 2026-11-23 |
 
 ## Setup
 
@@ -92,6 +94,14 @@ Studio's own suite against the module:
 |---|---|---|
 | Engine | the expression (line 4, columns 18 to 20) | `model::A@derivedProperty@upper@u1` |
 | legend-lite | the whole class (lines 1 to 5) | empty |
+
+**`mixed.mjs`:**
+
+- **The engine compiling legend-lite's parse JSON:** 132 of 133 compile. On `CORE-function-test-variants`, the engine
+  fails with a 500 (`ClassCastException`) on legend-lite's `minus(3)`.
+- **legend-lite composing the engine's JSON:** 126 of 133 give the engine's text, `PRETTY` and `STANDARD` alike.
+  - The three function-test cases fail with a 500: legend-lite can't read the engine's test-data shape.
+  - The four connection cases write the engine's quoted `timeZone` as `'\'UTC\''`.
 
 **What these runs do not show:**
 - a browser;
