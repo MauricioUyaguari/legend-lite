@@ -253,7 +253,13 @@ class PlanTypesAreDataTest {
                     "ConnectionSpecification$Databricks.httpPath", "ConnectionSpecification$Databricks.port",
                     "ConnectionSpecification$Databricks.protocol", "ConnectionSpecification$EmbeddedH2.databaseName",
                     "ConnectionSpecification$EmbeddedH2.directory", "ConnectionSpecification$LocalFile.path",
-                    "ConnectionSpecification$LocalH2.url", "ConnectionSpecification$Snowflake.accountName",
+                    "ConnectionSpecification$LocalH2.url",
+                    // a MongoDBConnection's server list (the fork's studio-compatibility-dev, 2026-11-16, reviewed into the
+                    // facts at its sync with neema2's main, 2026-11-23): a server's host and the database's name, as
+                    // StaticDatasource's host and database, its one-server form, are
+                    "ConnectionSpecification$MongoDbDatasource$Server.host",
+                    "ConnectionSpecification$MongoDbDatasource.database",
+                    "ConnectionSpecification$Snowflake.accountName",
                     "ConnectionSpecification$Snowflake.accountType", "ConnectionSpecification$Snowflake.cloudType",
                     "ConnectionSpecification$Snowflake.databaseName",
                     "ConnectionSpecification$Snowflake.organization", "ConnectionSpecification$Snowflake.region",

@@ -107,8 +107,11 @@ final class M2mRouteGuards {
                 boolean anySetAnswers = closure.stream().flatMap(m -> m.classMappings().stream())
                         .anyMatch(cm -> setIdMatches(cm, tgtSet));
                 if (!anySetAnswers) {
+                    // the engine's words are the error kind's (CompileKind.MISSING; the sync with neema2's main,
+                    // 2026-11-23: a compatibility spelling lives in the error model, never in the product's text)
                     throw new ModelException(LegendCompileException.Phase.MAPPING,
-                            "Can't find class mapping '" + tgtSet + "'; mapping=" + md.qualifiedName());
+                            com.legend.error.CompileKind.MISSING, java.util.List.of("class mapping", tgtSet),
+                            md.qualifiedName());
                 }
             }
             ClassMapping routed = sets.stream()

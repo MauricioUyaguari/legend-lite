@@ -22,7 +22,8 @@ import java.util.List;
 /**
  * A product test's read of a model on each in-process database: the query planned and run through the product's door
  * ({@code Execution.run}), its rows as strings. The product half of {@link DataDeliveryMatrixTest}'s helpers -- its
- * {@code DATABASES}, {@code Data}, {@code read} and {@code connection}, copied unchanged -- for the product tests that
+ * {@code Data}, {@code read} and {@code connection}, copied unchanged, and its {@code DATABASES} as the test backends
+ * list them -- for the product tests that
  * used them (the Studio roundtrip's mapping tests on the fork's studio-compatibility-dev), since that class became an
  * edge test (core/edge_tests.bzl: it also drives the edge's {@code ServiceTestRunner}) and a product test cannot reach
  * it (the sync of studio-compatibility-dev with neema2's main, 2026-11-23). Not a test class: it holds no test.
@@ -32,8 +33,9 @@ final class ProductReads {
     private ProductReads() {
     }
 
-    /** The in-process databases a product test reads on. */
-    static final List<DatabaseType> DATABASES = List.of(DatabaseType.DuckDB, DatabaseType.H2, DatabaseType.SQLite);
+    /** The in-process databases a product test reads on: the test backends' own list ({@code TestBackends.inProcess};
+     *  a database is named by its owner, never here: {@code DialectLeakRatchetTest}). */
+    static final List<DatabaseType> DATABASES = TestBackends.inProcess().stream().map(TestBackend::type).toList();
 
     /** A model, a query, the rows it answers and the runtime it reads through. */
     record Data(String model, String query, List<List<String>> rows, @com.legend.base.Nullable String runtime) {

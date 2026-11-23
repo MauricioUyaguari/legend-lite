@@ -233,8 +233,18 @@ class EdgeOnlyMembersTest {
             // the orchestrator's ruling of 2026-11-18 (train 20, the TS host's J40.ModelInput move found it; it hid behind
             // ModelInput.Data while that was a product class): lite's compiler door over its own protocol records, the
             // caller only wording each error -- legend-engine's compile route its one caller; J40.Compiler closes
-            Map.entry("com.legend.Compiler#compileErrors(com.legend.protocol.Protocol$PureModelContextData, java.util.function.Function)",
-                    "2026-11-18: lite's compiler door over its own protocol records, the caller wording each error (the orchestrator's ruling)"),
+            // (Compiler#compileErrors(PureModelContextData, Function): ruled READ_API 2026-11-18, the orchestrator's ruling
+            // above; the product reads it again since the fork's sync with neema2's main, 2026-11-23 --
+            // compileErrors(PureModelContextData) words its errors through it -- so its row goes)
+            // the fork's studio-compatibility-dev, at its sync with neema2's main (2026-11-23): fork PR #5's placed compile
+            // errors fitted into the worded doors. legend-engine's compile route reads a model given as records through
+            // the compiler's door (ModelInput.Data.compile; the product's compileErrors now reads the parsed records
+            // itself, to place each error by its element), and its error's span, CompileError#at, which only the
+            // engine's route writes (its sourceInformation; register S400)
+            Map.entry("com.legend.Compiler#compileModel(com.legend.protocol.Protocol$PureModelContextData)",
+                    "2026-11-23: lite's compiler door over its own protocol records, legend-engine's routes its readers (the fork's sync with neema2's main)"),
+            Map.entry("com.legend.Compiler$CompileError#at()",
+                    "2026-11-23: a compile error's span, which legend-engine's compile route writes as its sourceInformation (fork PR #5, S400)"),
             // stage B's B1 (2026-11-20, errors as records; D2, the user's pre-approval of B1's guard moves, ~17:00): a raised
             // error's site record, read by type (the edge's WebAssembly planner holds no exec class) -- the edge words
             // legend-pure's sentence from it after the run

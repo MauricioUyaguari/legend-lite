@@ -70,7 +70,7 @@ channel_a	BigQuery	meta::pure::functions::collection::in_Any_1__Any_MANY__Boolea
 channel_a	BigQuery	meta::pure::functions::collection::indexOf_T_MANY__T_1__Integer_1_	1	384	2895	3	0	0
 channel_a	BigQuery	meta::pure::functions::collection::init_T_MANY__T_MANY_	3	239	4205	2	0	0
 channel_a	BigQuery	meta::pure::functions::collection::isEmpty_Any_$0_1$__Boolean_1_	0	0	806	0	0	0
-channel_a	BigQuery	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	1	75	376410	1	0	0
+channel_a	BigQuery	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	1	75	377511	1	0	0
 channel_a	BigQuery	meta::pure::functions::collection::isNotEmpty_Any_$0_1$__Boolean_1_	0	0	805	0	0	0
 channel_a	BigQuery	meta::pure::functions::collection::isNotEmpty_Any_MANY__Boolean_1_	0	0	536	0	0	0
 channel_a	BigQuery	meta::pure::functions::collection::keys_Map_1__U_MANY_	3	5700	13151	40	2643	0
@@ -381,7 +381,7 @@ channel_a	ClickHouse	meta::pure::functions::collection::in_Any_1__Any_MANY__Bool
 channel_a	ClickHouse	meta::pure::functions::collection::indexOf_T_MANY__T_1__Integer_1_	1	448	2968	0	0	0
 channel_a	ClickHouse	meta::pure::functions::collection::init_T_MANY__T_MANY_	3	1116	5091	0	0	0
 channel_a	ClickHouse	meta::pure::functions::collection::isEmpty_Any_$0_1$__Boolean_1_	0	0	806	0	0	0
-channel_a	ClickHouse	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	1	75	376410	1	0	0
+channel_a	ClickHouse	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	1	75	377511	1	0	0
 channel_a	ClickHouse	meta::pure::functions::collection::isNotEmpty_Any_$0_1$__Boolean_1_	0	0	805	0	0	0
 channel_a	ClickHouse	meta::pure::functions::collection::isNotEmpty_Any_MANY__Boolean_1_	0	0	536	0	0	0
 channel_a	ClickHouse	meta::pure::functions::collection::keys_Map_1__U_MANY_	3	1950	9228	0	264	0
@@ -692,7 +692,7 @@ channel_a	Databricks	meta::pure::functions::collection::in_Any_1__Any_MANY__Bool
 channel_a	Databricks	meta::pure::functions::collection::indexOf_T_MANY__T_1__Integer_1_	1	109	2666	0	0	0
 channel_a	Databricks	meta::pure::functions::collection::init_T_MANY__T_MANY_	3	237	4331	0	0	0
 channel_a	Databricks	meta::pure::functions::collection::isEmpty_Any_$0_1$__Boolean_1_	0	0	806	0	0	0
-channel_a	Databricks	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	1	75	376410	1	0	0
+channel_a	Databricks	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	1	75	377511	1	0	0
 channel_a	Databricks	meta::pure::functions::collection::isNotEmpty_Any_$0_1$__Boolean_1_	0	0	805	0	0	0
 channel_a	Databricks	meta::pure::functions::collection::isNotEmpty_Any_MANY__Boolean_1_	0	0	536	0	0	0
 channel_a	Databricks	meta::pure::functions::collection::keys_Map_1__U_MANY_	3	371	7720	0	0	0
@@ -1003,7 +1003,7 @@ channel_a	DuckDB	meta::pure::functions::collection::in_Any_1__Any_MANY__Boolean_
 channel_a	DuckDB	meta::pure::functions::collection::indexOf_T_MANY__T_1__Integer_1_	1	106	2669	0	0	0
 channel_a	DuckDB	meta::pure::functions::collection::init_T_MANY__T_MANY_	3	189	4301	0	0	0
 channel_a	DuckDB	meta::pure::functions::collection::isEmpty_Any_$0_1$__Boolean_1_	0	0	806	0	0	0
-channel_a	DuckDB	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	1	75	376410	1	0	0
+channel_a	DuckDB	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	1	75	377511	1	0	0
 channel_a	DuckDB	meta::pure::functions::collection::isNotEmpty_Any_$0_1$__Boolean_1_	0	0	805	0	0	0
 channel_a	DuckDB	meta::pure::functions::collection::isNotEmpty_Any_MANY__Boolean_1_	0	0	536	0	0	0
 channel_a	DuckDB	meta::pure::functions::collection::keys_Map_1__U_MANY_	3	369	7736	0	0	0
@@ -1314,7 +1314,7 @@ channel_a	H2	meta::pure::functions::collection::in_Any_1__Any_MANY__Boolean_1_	2
 channel_a	H2	meta::pure::functions::collection::indexOf_T_MANY__T_1__Integer_1_	0	0	0	0	0	1
 channel_a	H2	meta::pure::functions::collection::init_T_MANY__T_MANY_	3	155	5869	0	0	0
 channel_a	H2	meta::pure::functions::collection::isEmpty_Any_$0_1$__Boolean_1_	0	0	806	0	0	0
-channel_a	H2	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	1	77	377988	1	0	0
+channel_a	H2	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	1	77	379089	1	0	0
 channel_a	H2	meta::pure::functions::collection::isNotEmpty_Any_$0_1$__Boolean_1_	0	0	805	0	0	0
 channel_a	H2	meta::pure::functions::collection::isNotEmpty_Any_MANY__Boolean_1_	0	0	536	0	0	0
 channel_a	H2	meta::pure::functions::collection::keys_Map_1__U_MANY_	0	0	0	0	0	3
@@ -1625,7 +1625,7 @@ channel_a	MariaDB	meta::pure::functions::collection::in_Any_1__Any_MANY__Boolean
 channel_a	MariaDB	meta::pure::functions::collection::indexOf_T_MANY__T_1__Integer_1_	1	532	3552	2	20	0
 channel_a	MariaDB	meta::pure::functions::collection::init_T_MANY__T_MANY_	3	149	5572	0	0	0
 channel_a	MariaDB	meta::pure::functions::collection::isEmpty_Any_$0_1$__Boolean_1_	0	0	806	0	0	0
-channel_a	MariaDB	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	1	75	376410	1	0	0
+channel_a	MariaDB	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	1	75	377511	1	0	0
 channel_a	MariaDB	meta::pure::functions::collection::isNotEmpty_Any_$0_1$__Boolean_1_	0	0	805	0	0	0
 channel_a	MariaDB	meta::pure::functions::collection::isNotEmpty_Any_MANY__Boolean_1_	0	0	536	0	0	0
 channel_a	MariaDB	meta::pure::functions::collection::keys_Map_1__U_MANY_	3	7338	16328	22	3396	0
@@ -1936,7 +1936,7 @@ channel_a	MySQL	meta::pure::functions::collection::in_Any_1__Any_MANY__Boolean_1
 channel_a	MySQL	meta::pure::functions::collection::indexOf_T_MANY__T_1__Integer_1_	1	746	3733	4	20	0
 channel_a	MySQL	meta::pure::functions::collection::init_T_MANY__T_MANY_	3	149	5425	0	0	0
 channel_a	MySQL	meta::pure::functions::collection::isEmpty_Any_$0_1$__Boolean_1_	0	0	806	0	0	0
-channel_a	MySQL	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	1	75	376410	1	0	0
+channel_a	MySQL	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	1	75	377511	1	0	0
 channel_a	MySQL	meta::pure::functions::collection::isNotEmpty_Any_$0_1$__Boolean_1_	0	0	805	0	0	0
 channel_a	MySQL	meta::pure::functions::collection::isNotEmpty_Any_MANY__Boolean_1_	0	0	536	0	0	0
 channel_a	MySQL	meta::pure::functions::collection::keys_Map_1__U_MANY_	3	9839	18906	47	4390	0
@@ -2247,7 +2247,7 @@ channel_a	Postgres	meta::pure::functions::collection::in_Any_1__Any_MANY__Boolea
 channel_a	Postgres	meta::pure::functions::collection::indexOf_T_MANY__T_1__Integer_1_	1	292	2831	2	40	0
 channel_a	Postgres	meta::pure::functions::collection::init_T_MANY__T_MANY_	3	155	4183	0	0	0
 channel_a	Postgres	meta::pure::functions::collection::isEmpty_Any_$0_1$__Boolean_1_	0	0	806	0	0	0
-channel_a	Postgres	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	1	75	376410	1	0	0
+channel_a	Postgres	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	1	75	377511	1	0	0
 channel_a	Postgres	meta::pure::functions::collection::isNotEmpty_Any_$0_1$__Boolean_1_	0	0	805	0	0	0
 channel_a	Postgres	meta::pure::functions::collection::isNotEmpty_Any_MANY__Boolean_1_	0	0	536	0	0	0
 channel_a	Postgres	meta::pure::functions::collection::keys_Map_1__U_MANY_	3	14589	22190	117	7020	0
@@ -2558,7 +2558,7 @@ channel_a	SQLite	meta::pure::functions::collection::in_Any_1__Any_MANY__Boolean_
 channel_a	SQLite	meta::pure::functions::collection::indexOf_T_MANY__T_1__Integer_1_	1	385	2871	6	0	0
 channel_a	SQLite	meta::pure::functions::collection::init_T_MANY__T_MANY_	3	105	3990	0	0	0
 channel_a	SQLite	meta::pure::functions::collection::isEmpty_Any_$0_1$__Boolean_1_	0	0	806	0	0	0
-channel_a	SQLite	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	1	73	374065	1	0	0
+channel_a	SQLite	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	1	73	375166	1	0	0
 channel_a	SQLite	meta::pure::functions::collection::isNotEmpty_Any_$0_1$__Boolean_1_	0	0	805	0	0	0
 channel_a	SQLite	meta::pure::functions::collection::isNotEmpty_Any_MANY__Boolean_1_	0	0	536	0	0	0
 channel_a	SQLite	meta::pure::functions::collection::keys_Map_1__U_MANY_	3	3383	10531	46	1522	0
@@ -2869,7 +2869,7 @@ channel_a	Snowflake	meta::pure::functions::collection::in_Any_1__Any_MANY__Boole
 channel_a	Snowflake	meta::pure::functions::collection::indexOf_T_MANY__T_1__Integer_1_	1	124	2868	0	0	0
 channel_a	Snowflake	meta::pure::functions::collection::init_T_MANY__T_MANY_	3	558	5234	0	27	0
 channel_a	Snowflake	meta::pure::functions::collection::isEmpty_Any_$0_1$__Boolean_1_	0	0	806	0	0	0
-channel_a	Snowflake	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	1	75	376410	1	0	0
+channel_a	Snowflake	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	1	75	377511	1	0	0
 channel_a	Snowflake	meta::pure::functions::collection::isNotEmpty_Any_$0_1$__Boolean_1_	0	0	805	0	0	0
 channel_a	Snowflake	meta::pure::functions::collection::isNotEmpty_Any_MANY__Boolean_1_	0	0	536	0	0	0
 channel_a	Snowflake	meta::pure::functions::collection::keys_Map_1__U_MANY_	3	1862	9833	0	279	0
@@ -3180,7 +3180,7 @@ channel_a	Trino	meta::pure::functions::collection::in_Any_1__Any_MANY__Boolean_1
 channel_a	Trino	meta::pure::functions::collection::indexOf_T_MANY__T_1__Integer_1_	1	245	2784	0	64	0
 channel_a	Trino	meta::pure::functions::collection::init_T_MANY__T_MANY_	3	388	4435	0	0	0
 channel_a	Trino	meta::pure::functions::collection::isEmpty_Any_$0_1$__Boolean_1_	0	0	806	0	0	0
-channel_a	Trino	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	1	75	376410	1	0	0
+channel_a	Trino	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	1	75	377511	1	0	0
 channel_a	Trino	meta::pure::functions::collection::isNotEmpty_Any_$0_1$__Boolean_1_	0	0	805	0	0	0
 channel_a	Trino	meta::pure::functions::collection::isNotEmpty_Any_MANY__Boolean_1_	0	0	536	0	0	0
 channel_a	Trino	meta::pure::functions::collection::keys_Map_1__U_MANY_	3	702	8024	0	34	0
@@ -3470,7 +3470,7 @@ core	DuckDB	TypedMerge	15	3678	30059	13	55	0
 core	DuckDB	TypedNewInstance	5	1086	25079	0	0	0
 core	DuckDB	TypedPackageableRef	1	23	52094	0	0	0
 core	DuckDB	TypedPivot	53	25064	392350	46	2814	0
-core	DuckDB	TypedProject	641	92712	6638352	138	2690	0
+core	DuckDB	TypedProject	641	92712	6650463	138	2690	0
 core	DuckDB	TypedPropertyAccess	7	5893	79144	6	174	0
 core	DuckDB	TypedRename	4	473	15468	0	0	0
 core	DuckDB	TypedSelect	143	24426	619622	22	1710	0
@@ -3483,7 +3483,7 @@ core	DuckDB	TypedTds	8	767	14658	0	0	0
 core	DuckDB	TypedUpdate	8	1172	8389	11	0	0
 core	DuckDB	TypedVariable	2	660	6950	0	120	0
 core	DuckDB	TypedWrite	34	4265	43674	10	115	0
-core	DuckDB	let	458	136369	4985111	248	24765	0
+core	DuckDB	let	458	136369	4996121	248	24765	0
 core	DuckDB	meta::legend::lite::deleteInstances_Relation_1__Class_1__ColSpec_1__Integer_1_	2	118	1821	1	0	0
 core	DuckDB	meta::legend::lite::link_Relation_1__Class_1__ColSpec_1__ColSpec_1__Integer_1_	4	560	3968	2	0	0
 core	DuckDB	meta::legend::lite::mergeInstances_Relation_1__Class_1__ColSpec_1__Integer_1_	4	601	4009	2	0	0
@@ -3511,7 +3511,7 @@ core	DuckDB	meta::pure::functions::collection::head_T_MANY__T_$0_1$_	3	1000	1825
 core	DuckDB	meta::pure::functions::collection::indexOf_T_MANY__T_1__Integer_1_	2	1056	18660	0	78	0
 core	DuckDB	meta::pure::functions::collection::init_T_MANY__T_MANY_	2	122	2484	0	0	0
 core	DuckDB	meta::pure::functions::collection::isDistinct_T_MANY__Boolean_1_	2	1978	15202	0	933	0
-core	DuckDB	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	9	675	3442743	9	0	0
+core	DuckDB	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	9	675	3452652	9	0	0
 core	DuckDB	meta::pure::functions::collection::last_T_MANY__T_$0_1$_	1	37	1118	0	0	0
 core	DuckDB	meta::pure::functions::collection::least_X_$1_MANY$__X_1_	4	1104	23761	2	32	0
 core	DuckDB	meta::pure::functions::collection::list_U_MANY__List_1_	2	44	4040	0	0	0
@@ -3521,7 +3521,7 @@ core	DuckDB	meta::pure::functions::collection::pair_U_1__V_1__Pair_1_	1	43	2960	
 core	DuckDB	meta::pure::functions::collection::removeDuplicatesBy_T_MANY__Function_1__T_MANY_	1	1221	25856	2	262	0
 core	DuckDB	meta::pure::functions::collection::removeDuplicates_T_MANY__Function_1__T_MANY_	2	1547	35966	2	278	0
 core	DuckDB	meta::pure::functions::collection::removeDuplicates_T_MANY__T_MANY_	4	1823	41716	2	278	0
-core	DuckDB	meta::pure::functions::collection::size_Any_MANY__Integer_1_	27	23030	1443739	10	6304	0
+core	DuckDB	meta::pure::functions::collection::size_Any_MANY__Integer_1_	27	23030	1447042	10	6304	0
 core	DuckDB	meta::pure::functions::collection::sort_T_m__Function_$0_1$__Function_$0_1$__T_m_	1	471	9725	0	72	0
 core	DuckDB	meta::pure::functions::collection::sort_T_m__Function_$0_1$__T_m_	1	103	2081	0	0	0
 core	DuckDB	meta::pure::functions::collection::sort_T_m__T_m_	2	3809	67960	6	1212	0
@@ -3679,7 +3679,7 @@ core	H2	TypedGroupBy	1	92	4881	0	0	0
 core	H2	TypedLimit	2	1768	11747	2	426	0
 core	H2	TypedMerge	15	4165	38900	13	87	0
 core	H2	TypedPivot	8	1865	43168	6	0	0
-core	H2	TypedProject	40	4001	1239934	3	354	0
+core	H2	TypedProject	40	4001	1243237	3	354	0
 core	H2	TypedPropertyAccess	1	793	5941	2	93	0
 core	H2	TypedSelect	37	3012	165547	0	0	0
 core	H2	TypedSerialize	2	269	10336	0	0	0
@@ -3688,13 +3688,13 @@ core	H2	TypedTableReference	1	87	4180	0	0	0
 core	H2	TypedUpdate	6	374	8987	0	0	0
 core	H2	TypedVariable	2	82	7236	0	0	0
 core	H2	TypedWrite	30	5459	48032	4	749	0
-core	H2	let	162	31718	1170148	16	7138	0
+core	H2	let	162	31718	1172350	16	7138	0
 core	H2	meta::legend::lite::deleteInstances_Relation_1__Class_1__ColSpec_1__Integer_1_	2	148	2925	1	0	0
 core	H2	meta::legend::lite::link_Relation_1__Class_1__ColSpec_1__ColSpec_1__Integer_1_	4	676	6288	2	0	0
 core	H2	meta::legend::lite::mergeInstances_Relation_1__Class_1__ColSpec_1__Integer_1_	2	312	3118	1	0	0
 core	H2	meta::legend::lite::unlink_Relation_1__Class_1__ColSpec_1__ColSpec_1__Integer_1_	2	339	3141	1	0	0
 core	H2	meta::legend::lite::writeInstances_Relation_1__Class_1__ColSpec_1__Integer_1_	7	681	9994	0	0	0
-core	H2	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	1	77	384105	1	0	0
+core	H2	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	1	77	385206	1	0	0
 core	H2	meta::pure::functions::collection::sort_T_m__T_m_	1	130	5914	1	0	0
 core	H2	meta::pure::functions::math::acos_Number_1__Float_1_	1	233	3741	0	31	0
 core	H2	meta::pure::functions::math::plus_Integer_MANY__Integer_1_	1	23	3643	0	0	0
@@ -3731,18 +3731,18 @@ core	SQLite	TypedFilter	4	3023	26028	9	324	0
 core	SQLite	TypedFrom	10	6012	47363	13	996	0
 core	SQLite	TypedLimit	2	1757	11068	4	346	0
 core	SQLite	TypedPivot	6	1891	27333	11	68	0
-core	SQLite	TypedProject	48	4454	854267	5	216	0
+core	SQLite	TypedProject	48	4454	856469	5	216	0
 core	SQLite	TypedPropertyAccess	1	720	5511	3	0	0
 core	SQLite	TypedSelect	10	903	42679	0	0	0
 core	SQLite	TypedSerialize	2	213	7796	0	0	0
 core	SQLite	TypedSort	39	7604	182872	17	134	0
 core	SQLite	TypedVariable	2	62	4750	0	0	0
-core	SQLite	let	165	30057	1088876	118	5045	0
+core	SQLite	let	165	30057	1091078	118	5045	0
 core	SQLite	meta::pure::functions::boolean::equal_Any_MANY__Any_MANY__Boolean_1_	6	24280	170321	124	9585	0
 core	SQLite	meta::pure::functions::collection::contains_Any_MANY__Any_1__Boolean_1_	1	1273	14946	10	76	0
 core	SQLite	meta::pure::functions::collection::indexOf_T_MANY__T_1__Integer_1_	1	1164	16155	6	76	0
 core	SQLite	meta::pure::functions::collection::isDistinct_T_MANY__Boolean_1_	2	1484	14550	10	17	0
-core	SQLite	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	1	73	380255	1	0	0
+core	SQLite	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	1	73	381356	1	0	0
 core	SQLite	meta::pure::functions::collection::removeDuplicates_T_MANY__Function_1__T_MANY_	1	14942	45082	91	7245	0
 core	SQLite	meta::pure::functions::collection::removeDuplicates_T_MANY__T_MANY_	1	14942	45082	91	7245	0
 core	SQLite	meta::pure::functions::collection::size_Any_MANY__Integer_1_	17	40583	255702	348	12811	0

@@ -1224,11 +1224,15 @@ public final class NameResolver {
     private static MappingInclude dataSpaceMapping(String path,
             java.util.Map<String, PackageableElement> byPath) {
         PackageableElement e = byPath.get(path);
+        if (e == null) {
+            // the engine's words are the error kind's (CompileKind.MISSING; the sync with neema2's main, 2026-11-23)
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.RESOLVE,
+                    com.legend.error.CompileKind.MISSING, List.of("the packageable element", path));
+        }
         if (!(e instanceof com.legend.model.DataSpaceDefinition ds)) {
             throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.RESOLVE,
-                    e == null ? "Can't find the packageable element '" + path + "' (an include dataspace)"
-                            : "include dataspace '" + path + "' names a " + e.getClass().getSimpleName()
-                                    + ", not a data space");
+                    "include dataspace '" + path + "' names a " + e.getClass().getSimpleName()
+                            + ", not a data space");
         }
         if (ds.defaultExecutionContext() == null) {
             throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.RESOLVE,

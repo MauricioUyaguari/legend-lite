@@ -1421,10 +1421,13 @@ public final class MappingNormalizer {
             // DSL_Snowflake-m2m-udf-function-activator, 2026-11-16)
             String transformType = sourcePathType(pb.expression(), srcFqn, model);
             if (transformType != null && !model.knowledge().isSubtype(transformType, innerFqn)) {
-                throw new ModelException(LegendCompileException.Phase.MAPPING, "Can't find class mapping '"
-                        + (pb.targetSetId() != null ? pb.targetSetId()
-                                : com.legend.model.SetId.defaultFor(innerFqn))
-                        + "'; mapping=" + md.qualifiedName());
+                // the engine's words are the error kind's (CompileKind.MISSING; the sync with neema2's main,
+                // 2026-11-23), the mapping its element
+                throw new ModelException(LegendCompileException.Phase.MAPPING,
+                        com.legend.error.CompileKind.MISSING, java.util.List.of("class mapping",
+                                pb.targetSetId() != null ? pb.targetSetId()
+                                        : com.legend.model.SetId.defaultFor(innerFqn)),
+                        md.qualifiedName());
             }
             return pb.expression();
         }
