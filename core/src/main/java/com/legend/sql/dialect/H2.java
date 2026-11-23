@@ -13,9 +13,9 @@ import java.util.Set;
 
 /**
  * The H2 EXECUTION dialect (H2_BACKEND.md §12 step 8) — a sibling of
- * {@link DuckDb} extending {@link AnsiSqlRenderer}, NEVER
- * {@link EngineStyleH2} (whose output is byte-pinned to the engine's
- * golden TEXT and stays quarantined). This dialect's contract is
+ * {@link DuckDb} extending {@link AnsiSqlRenderer} (legend-engine's
+ * golden-text printer, which extended it, went with that text: A2 of the
+ * compatibility program, 2026-11-19, CP-4). This dialect's contract is
  * EXECUTABLE SQL for lite's ONE H2, 2.5.252 (the user, 2026-11-05: "I want latest version of H2"; until then core
  * and the corpus ran 2.1.214, legend-engine's own and patched, and PCT's lane 2.4.240 through a second dialect,
  * {@code H2Modern}, chosen by the connected server's version; register S141): every spelling here was probed against
@@ -31,6 +31,11 @@ import java.util.Set;
  */
 public class H2 extends AnsiSqlRenderer {
 
+    @Override
+    protected String product() {
+        return "H2";
+    }
+
     /** The words H2 2.x reserves that legend-engine's own H2 session frees ({@code NON_KEYWORDS}: H2Manager's list,
      *  4.145.0), so a golden replayed here reads as it did in the engine's run. A session's setting, which commits no
      *  transaction: H2's session statement ({@link #sessionSetup}). */
@@ -40,17 +45,10 @@ public class H2 extends AnsiSqlRenderer {
 
     /** H2's session statement: the engine's non-keywords, set on every connection (a session's setting; measured on
      *  2.5.252: it commits no open transaction). */
-    static final List<String> SESSION_SETUP = List.of("SET NON_KEYWORDS " + NON_KEYWORDS);
+    public static final List<String> SESSION_SETUP = List.of("SET NON_KEYWORDS " + NON_KEYWORDS);
 
-    /** The settings an H2 database must have, the engine's own (H2Manager / H2Defaults, 4.145.0): {@code MODE=LEGACY},
-     *  and {@code DEFAULT_NULL_ORDERING=HIGH}, the engine's null placement (null is largest -- ascending nulls last,
-     *  descending first), which its printer leaves bare because the database already orders that way. Both are the
-     *  database's, and their {@code SET} commits an open transaction (measured on 2.5.252), so they are the target's
-     *  data, written on the URL of an in-memory database exec opens and read back from a session it did not
-     *  ({@code INFORMATION_SCHEMA.SETTINGS} reports each as written: {@code LEGACY}, {@code HIGH}; the read-back's rows
-     *  are the settings it has otherwise, the database comparing, {@link #differing}). */
-    static final DatabaseSettings DATABASE_SETTINGS = differing(List.of(new Setting("MODE", "LEGACY"),
-            new Setting("DEFAULT_NULL_ORDERING", "HIGH")));
+    // (the settings an H2 database has: a two-form kind since the audit's J22, 2026-11-17, DatabaseSettingsForm -- the
+    // product's H2's own defaults, ProductDatabaseSettings; legend-engine's the edge's)
 
     /** {@code required} with the statement answering each of them the database does NOT have, as one text
      *  ({@code NAME=VALUE}, by name; {@code NAME=(not reported)} for one it does not report at all): none where it has
@@ -58,7 +56,7 @@ public class H2 extends AnsiSqlRenderer {
      *  final audit's J4, 2026-11-12: until then a setting the database did not report answered no row, so it passed).
      *  Measured on 2.5.252: a bare database answers {@code DEFAULT_NULL_ORDERING=LOW} and {@code MODE=REGULAR}, a name
      *  it does not have {@code (not reported)}. */
-    static DatabaseSettings differing(List<Setting> required) {
+    public static DatabaseSettings settings(List<Setting> required) {
         StringBuilder sql = new StringBuilder("SELECT R.SETTING || '=' || COALESCE(S.SETTING_VALUE, '(not reported)')"
                 + " FROM (VALUES ");
         for (int i = 0; i < required.size(); i++) {
@@ -102,10 +100,10 @@ public class H2 extends AnsiSqlRenderer {
         return SESSION_SETUP;
     }
 
-    /** {@inheritDoc} {@code MODE=LEGACY}, {@code DEFAULT_NULL_ORDERING=HIGH} ({@link #DATABASE_SETTINGS}). */
+    /** {@inheritDoc} This dialect's {@link DatabaseSettingsForm}. */
     @Override
-    public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
-        return DATABASE_SETTINGS;
+    public DatabaseSettings databaseSettings() {
+        return settings;
     }
 
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
@@ -156,7 +154,7 @@ public class H2 extends AnsiSqlRenderer {
         // every level above it (ProjectionWrapsFold)
         ps.add(new ProjectionWrapsFold(n -> n.toUpperCase(java.util.Locale.ROOT)));   // a bare name labelled in upper case
         // and a select over one subselect merged into it where the answer is kept (SelectMerge, 2026-11-04)
-        ps.add(new SelectMerge(n -> n.toUpperCase(java.util.Locale.ROOT)));
+        ps.add(new SelectMerge(n -> n.toUpperCase(java.util.Locale.ROOT), SelectMerge.IN_PLACE));
         // and a chain of windowed levels laid out again, each value once (SelectLayers, 2026-11-04, #169)
         ps.add(new SelectLayers(n -> n.toUpperCase(java.util.Locale.ROOT)));
         // (SharedRelationsInPlace.bindingAValue went 2026-11-06, with main's H2 2.5.252: a shared relation that binds a
@@ -193,7 +191,7 @@ public class H2 extends AnsiSqlRenderer {
      * words the STOCK parser rejects in alias position (witnessed:
      * {@code AS right} &rarr; syntax error) that the engine's laxer
      * FORK omits. Execution-dialect-only — golden text channels use
-     * {@link #ENGINE_LEXICON} or {@link EngineStyleH2#LEXICON}. */
+     * {@link #ENGINE_LEXICON}. */
     public static final Lexicon LEXICON = new Lexicon('"',
             java.util.stream.Stream.concat(
                     ENGINE_LEXICON.reservedWords().stream(),
@@ -230,8 +228,17 @@ public class H2 extends AnsiSqlRenderer {
      * backend without it), JSON constructors only. */
     public static final CarrierStrategies.Caps CAPS = new CarrierStrategies.Caps(false, false, false, false);
 
+    private final DatabaseSettings settings;
+
+    /** The product's H2 ({@link ProductDatabaseSettings}). */
     public H2() {
+        this(ProductDatabaseSettings.INSTANCE);
+    }
+
+    /** H2 on a database with {@code settings}, the plan style's two-form {@link DatabaseSettingsForm} (data, not an override). */
+    protected H2(DatabaseSettingsForm settings) {
         super(LEXICON);
+        this.settings = settings(settings.required());
     }
 
     @Override
@@ -295,6 +302,11 @@ public class H2 extends AnsiSqlRenderer {
      *  not expressible in CSVREAD's options, refused by name. */
     @Override
     public CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load) {
+        // its record check's raise a site of the load's one table (phase D's Phase 2, 2026-11-16)
+        return collectingSites(() -> csvStatements(load), CsvLoad::withSites);
+    }
+
+    private CsvLoad csvStatements(com.legend.sql.SqlDml.LoadCsv load) {
         for (char c : new char[] {load.delimiter(), load.quote()}) {
             if (Character.isWhitespace(c)) {
                 throw new DialectCapability("a CSV file whose delimiter or quote is white space: H2's CSVREAD takes"
@@ -486,12 +498,6 @@ public class H2 extends AnsiSqlRenderer {
         };
     }
 
-    /** The engine's H2 text is H2's own. */
-    @Override
-    public String fromEngineText(String statement) {
-        return statement;
-    }
-
     /** H2 types a parameter when it prepares the statement — by its neighbour (a decimal beside an integer column is
      *  read as an integer: {@code ID * ?} with 1.5 answers {@code [2, 6]}), or not at all when it stands alone
      *  ({@code Unknown data type}) — so every placeholder is written typed, as a literal of the parameter's value is,
@@ -574,6 +580,8 @@ public class H2 extends AnsiSqlRenderer {
         // every function, each by name: the switch is this dialect's whole table (the dialect program's Phase 1,
         // 2026-10-13: an exhaustive switch, so a new function asks this dialect too)
         return switch (c.fn()) {
+            // census J20 (2026-11-18): the one numeric rule, this dialect's full match (AnsiSqlRenderer.isNumeric)
+            case IS_NUMERIC -> isNumeric(writer, c.args().get(0), parentPrec);
             case FORMAT -> formatArm(writer, c);
             case EQUAL -> equalArm(writer, c, parentPrec);
             case DATE_DIFF -> dateDiffArm(writer, c);
@@ -652,11 +660,13 @@ public class H2 extends AnsiSqlRenderer {
             case IS_NOT_NULL -> isNotNullTest(writer, c.args());
             case IN -> inList(writer, c.args(), parentPrec);
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
-            case PARSE_INT -> castAs(writer, c.args().get(0), "BIGINT");
+            case PARSE_INT -> parseInteger(writer, c.args().get(0));
             // NULL-skipping flat concat (the database's concat skips NULL arguments)
             case CONCAT -> concatFlat(writer, c.args());
             // joinStrings' interleaved concat, never flattened
             case CONCAT_JOIN -> writer.function("concat", c.args());
+            // the product's join of a row's cells: CONCAT_WS skips a NULL part with its separator (measured, Phase 3)
+            case CONCAT_WS -> writer.function("concat_ws", c.args());
             case PI -> writer.append("pi()");
             case CEILING -> bigintOf(writer, "ceil", c.args());
             case FLOOR -> bigintOf(writer, "floor", c.args());
@@ -675,8 +685,12 @@ public class H2 extends AnsiSqlRenderer {
             case TODAY -> writer.append("current_date");
             case NOW -> writer.append("now()");
             case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
-            case DATE_TRUNC -> dateTruncDateGrained(writer, c.args(),
-                    stringLit(datePart(part(a.get(0))).toLowerCase(java.util.Locale.ROOT)));
+            // a week starts on Monday, Pure's (firstDayOfWeek is mostRecentDayOfWeek(Monday), legend-engine's
+            // dateExtension.pure): H2's 'week' starts on the session locale's first day, Sunday under en_US (measured,
+            // track A5, 2026-11-19: firstDayOfWeek(%2014-12-04) answered 2014-11-30 where every other database answers
+            // 2014-12-01); its 'iso_week' starts on Monday
+            case DATE_TRUNC -> dateTruncDateGrained(writer, c.args(), stringLit(part(a.get(0)) == com.legend.sql.DatePart.WEEK
+                    ? "iso_week" : datePart(part(a.get(0))).toLowerCase(java.util.Locale.ROOT)));
             case CURRENT_USER_FN -> writer.append("current_user");
             case IS_DISTINCT_FROM, NULL_SAFE_NOT_EQUAL -> distinctFrom(writer, c.args());
             case NULL_SAFE_EQUAL -> notDistinctFrom(writer, c.args());
@@ -684,8 +698,10 @@ public class H2 extends AnsiSqlRenderer {
             case PARSE_DATE -> castAs(writer, c.args().get(0), "TIMESTAMP");
             // Pure's divide-with-scale is HALF_UP: plain ROUND (half away from zero)
             case ROUND_HALF_UP -> writer.function("ROUND", c.args());
-            case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
-            case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
+            case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+            case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
+                    throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,
                  LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT,
@@ -738,7 +754,7 @@ public class H2 extends AnsiSqlRenderer {
             case MAP_KEYS -> writer.function("map_keys", c.args());
             case MAP_VALUES -> writer.function("map_values", c.args());
             case MAP_CONCAT -> writer.function("map_concat", c.args());
-            case SUBSTRING -> writer.function("substr", c.args());
+            case SUBSTRING, SUBSTRING_AS_GIVEN -> writer.function("substr", c.args());
             case MATCHES -> writer.function("regexp_like", c.args());
             case LEFT -> writer.function("left", c.args());
             case RIGHT -> writer.function("right", c.args());
@@ -951,8 +967,8 @@ public class H2 extends AnsiSqlRenderer {
     }
 
     /** A DurationUnit's part -> H2 dateadd unit keyword (the
-     * engine's extensionDefaults mapToDBUnitType; duplicated from the
-     * QUARANTINED EngineStyleH2 deliberately — semantic unit data, not
+     * engine's extensionDefaults mapToDBUnitType; once duplicated in
+     * legend-engine's SQL-text printer, deleted with A2, 2026-11-19 — semantic unit data, not
      * golden formatting). */
     private static String dateUnit(com.legend.sql.DatePart unit) {
         return switch (unit) {
@@ -1288,8 +1304,40 @@ public class H2 extends AnsiSqlRenderer {
      * reference text via CASE — detection is by node shape (EXISTS,
      * literals, comparisons, logic, null tests, membership), never by
      * guessing a column's type. */
+    /** parseInteger, guarded ({@link #guardedParseInt}); the cast reads the text the grammar admitted alone. */
+    private SqlWriter parseInteger(SqlWriter writer, SqlExpr x) {
+        SqlWriter.Piece matches = w -> w.append("REGEXP_LIKE(").expr(x, 0).append(", '^[+-]?[0-9]+$')");
+        return guardedParseInt(writer, x, matches,
+                w -> w.append("CAST(").piece(admitted(x, matches)).append(" AS BIGINT)"));
+    }
+
+    /** The text a parse's grammar admitted, else NULL: H2 folds a cast of a constant when it PREPARES the statement,
+     *  in a CASE arm never taken too (the golden net, 2026-11-17: parseInteger('abc') raised H2's "Data conversion
+     *  error" before the guard chose), so the conversion is written over this, which folds to NULL where the grammar
+     *  refuses and leaves the guard's named raise to answer. */
+    private static SqlWriter.Piece admitted(SqlExpr x, SqlWriter.Piece matches) {
+        return w -> w.append("CASE WHEN ").piece(matches).append(" THEN ").expr(x, 0).append(" END");
+    }
+
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
+        // a double's Float literal is H2's double already (floatLiteral: CAST(x AS DOUBLE PRECISION)): its cast to a
+        // double is the identity, never written again (S20's waste look, 2026-11-17)
+        if (c.target() == com.legend.sql.SqlType.Scalar.DOUBLE && c.value() instanceof SqlExpr.FloatLit f && f.isDouble()
+                && Double.isFinite(f.value())) {
+            return writer.expr(f, 0);
+        }
+        // parseFloat: a refusal raised H2's own conversion error, never lite's kind (the user's error design,
+        // 2026-11-16): legend-pure's grammar, Java regex (\p{Space} for the POSIX class REGEXP_LIKE does not read),
+        // the trailing f stripped before H2's cast, which holds NaN and Infinity itself (Phase 8)
+        if (isParseFloat(c)) {
+            SqlExpr x = c.value();
+            SqlWriter.Piece matches = w -> w.append("REGEXP_LIKE(").expr(x, 0)
+                    .append(", '" + FLOAT_GRAMMAR.replace("[[:space:]]", "\\p{Space}") + "')");
+            return guardedParseFloat(writer, x, matches,
+                    w -> w.append("CAST(TRIM(REGEXP_REPLACE(").piece(admitted(x, matches))
+                            .append(", '[fF]\\p{Space}*$', '')) AS DOUBLE PRECISION)"));
+        }
         if (c.target() == com.legend.sql.SqlType.Scalar.JSON) {
             return jsonParseCast(writer, c);
         }
@@ -1442,7 +1490,7 @@ public class H2 extends AnsiSqlRenderer {
      *  {@code \x{h…}}, so no character is special inside the class. It used to call
      *  {@code legend_h2_extension_split_part}, a function only the engine's H2 (and our test
      *  harness) installs, so product SQL failed on a plain H2 (execution plan W0.2(a)); that
-     *  spelling stays where it belongs, in {@link EngineStyleH2}'s golden text. A separator that
+     *  spelling was legend-engine's golden text's alone (gone with it, A2, 2026-11-19). A separator that
      *  is not a literal has no spelling here and is refused. */
     @Override
     protected SqlWriter splitPartCall(SqlWriter writer, java.util.List<SqlExpr> a) {
@@ -1521,5 +1569,26 @@ public class H2 extends AnsiSqlRenderer {
     @Override
     protected boolean writesGridReports() {
         return true;
+    }
+
+    /** {@inheritDoc} The value's six-decimal DECIMAL text, trimmed; H2's NaN and infinities, which no DECIMAL holds, as its own text of them, Java's (NaN exceeds every number, so one test finds the three; measured on 2.5.252, 2026-11-15). */
+    @Override
+    @SpellingArm
+    protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
+        writer.append("CASE WHEN ABS(").expr(x, 0).append(") > 1.7976931348623157E308 THEN CAST(").expr(x, 0)
+                .append(" AS VARCHAR) ELSE ");
+        trimmedSix(writer, "rtrim", w -> w.append("CAST(CAST(").expr(x, 0).append(" AS DECIMAL(1000, 6)) AS VARCHAR)"));
+        return writer.append(" END");
+    }
+
+    /** A Float literal is the double (S20, Phase 5b, 2026-11-17): H2 reads an exponent literal as a DECFLOAT and a
+     *  plain one as a NUMERIC (measured, 2.5.252), so the double's digits cast; a negative zero cast from its text (the
+     *  orchestrator's round 56, 2026-11-15: -0.0 was written 0.0). */
+    @Override
+    protected String floatLiteral(double v) {
+        if (v == 0.0 && Double.doubleToRawLongBits(v) != 0L) {
+            return "CAST('-0.0' AS DOUBLE PRECISION)";
+        }
+        return Double.isFinite(v) ? "CAST(" + Double.toString(v) + " AS DOUBLE PRECISION)" : super.floatLiteral(v);
     }
 }

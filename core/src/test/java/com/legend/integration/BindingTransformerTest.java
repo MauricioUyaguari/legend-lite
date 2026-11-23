@@ -68,7 +68,7 @@ class BindingTransformerTest {
                   #>{x::DB.PERSON}#
                 }
                 ###Connection
-                """.formatted(extraMapping) + DataDeliveryMatrixTest.connection(db, "specification: LocalH2 { "
+                """.formatted(extraMapping) + ProductReads.connection(db, "specification: LocalH2 { "
                 + "testDataSetupCSV: 'default\\nPERSON\\nID,NAME,FIRM,MANAGERID\\n"
                 + "1,Ann,\"{\"\"legalName\"\":\"\"Acme\"\",\"\"size\"\":10,\"\"address\"\":{\"\"city\"\":\"\"NYC\"\"}}\",\\n"
                 + "2,Bob,\"{\"\"legalName\"\":\"\"Beta\"\"}\",1\\n"
@@ -79,10 +79,10 @@ class BindingTransformerTest {
     }
 
     /** One in-process database, for what does not depend on which (a refusal at model build). */
-    private static final DatabaseType ANY = DataDeliveryMatrixTest.DATABASES.get(0);
+    private static final DatabaseType ANY = ProductReads.DATABASES.get(0);
 
     private static List<List<String>> read(DatabaseType db, String query) throws Exception {
-        return DataDeliveryMatrixTest.read(new DataDeliveryMatrixTest.Data(model(db, ""), query, List.of(), "x::RT"),
+        return ProductReads.read(new ProductReads.Data(model(db, ""), query, List.of(), "x::RT"),
                 query, db);
     }
 
@@ -96,7 +96,7 @@ class BindingTransformerTest {
                 Arrays.asList("Ann", "Acme", "10", "null", "NYC", "null", "null"),
                 Arrays.asList("Bob", "Beta", "null", "Acme", "null", "null", "null"),
                 Arrays.asList("Cy", "null", "null", "Beta", "null", "null", "Acme"));
-        for (DatabaseType db : DataDeliveryMatrixTest.DATABASES) {
+        for (DatabaseType db : ProductReads.DATABASES) {
             assertEquals(rows, read(db, query), db + ": the bound column navigated");
         }
     }
@@ -108,10 +108,10 @@ class BindingTransformerTest {
                 + " z:x|$x.firm.address.zip])->sort(~n->ascending())->from(x::M, x::RT)";
         List<List<String>> rows = List.of(Arrays.asList("Ann", "Acme", "NYC", "null"),
                 Arrays.asList("Bob", "Beta", "null", "null"), Arrays.asList("Cy", "null", "null", "null"));
-        for (DatabaseType db : DataDeliveryMatrixTest.DATABASES) {
+        for (DatabaseType db : ProductReads.DATABASES) {
             String model = model(db, "").replace("firm: x::Firm[0..1];", "firm: x::Firm[1];")
                     .replace("address: x::Address[0..1];", "address: x::Address[1];");
-            assertEquals(rows, DataDeliveryMatrixTest.read(new DataDeliveryMatrixTest.Data(model, query, List.of(),
+            assertEquals(rows, ProductReads.read(new ProductReads.Data(model, query, List.of(),
                     "x::RT"), query, db), db + ": the [1] properties navigated");
         }
     }
@@ -123,7 +123,7 @@ class BindingTransformerTest {
                 + "->sort(~n->ascending())->from(x::RM, x::RT)";
         List<List<String>> rows = List.of(Arrays.asList("Ann", "Acme", "NYC"), Arrays.asList("Bob", "Beta", "null"),
                 Arrays.asList("Cy", "null", "null"));
-        for (DatabaseType db : DataDeliveryMatrixTest.DATABASES) {
+        for (DatabaseType db : ProductReads.DATABASES) {
             assertEquals(rows, read(db, query), db + ": the relation function's bound column navigated");
         }
     }
@@ -137,7 +137,7 @@ class BindingTransformerTest {
                 .replace("firm: Binding x::FirmBinding : FIRM", "firm: Binding FirmBinding : FIRM");
         assertTrue(model.contains("import x::*;") && model.contains("firm: Binding FirmBinding : FIRM"), model);
         assertEquals(List.of(Arrays.asList("Ann", "Acme"), Arrays.asList("Bob", "Beta"), Arrays.asList("Cy", "null")),
-                DataDeliveryMatrixTest.read(new DataDeliveryMatrixTest.Data(model, query, List.of(), "x::RT"),
+                ProductReads.read(new ProductReads.Data(model, query, List.of(), "x::RT"),
                         query, ANY), "the binding's short name resolved against the import");
     }
 
@@ -146,7 +146,7 @@ class BindingTransformerTest {
     void filters() throws Exception {
         String query = "|x::Person.all()->filter(x|$x.firm.legalName == 'Acme')->project(~[n:x|$x.name])"
                 + "->from(x::M, x::RT)";
-        for (DatabaseType db : DataDeliveryMatrixTest.DATABASES) {
+        for (DatabaseType db : ProductReads.DATABASES) {
             assertEquals(List.of(List.of("Ann")), read(db, query), db + ": the filter");
         }
     }
@@ -202,7 +202,7 @@ class BindingTransformerTest {
     }
 
     private static List<List<String>> rows(String model, String query) throws Exception {
-        return DataDeliveryMatrixTest.read(new DataDeliveryMatrixTest.Data(model, query, List.of(), "x::RT"), query, ANY);
+        return ProductReads.read(new ProductReads.Data(model, query, List.of(), "x::RT"), query, ANY);
     }
 
     private static void assertRefusedAtUse(String fragment, String model, String query) {

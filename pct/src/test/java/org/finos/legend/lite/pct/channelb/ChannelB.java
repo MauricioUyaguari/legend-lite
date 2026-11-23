@@ -48,7 +48,13 @@ public final class ChannelB {
     private ChannelB() {
     }
 
-    public record Outcome(String testFqn, Status status, String detail) {
+    /** A test's outcome: its {@code detail} for display (a long middle clipped, {@link #first}) and its {@code full}
+     *  text, the database's whole error, which the ledger matches (2026-11-15, Databricks round 53: a clipped middle
+     *  removed the ledger's text; shortening is presentation and never decides a match). */
+    public record Outcome(String testFqn, Status status, String detail, String full) {
+        public Outcome(String testFqn, Status status, String detail) {
+            this(testFqn, status, detail, detail);
+        }
     }
 
     public enum Status { PASS, FAIL, DECLINED, ERROR }
@@ -79,6 +85,9 @@ public final class ChannelB {
      * roots and matches by the same prefixed name. */
     public static List<Outcome> run(List<Path> modelRoots,
             List<Path> scopeDirs, List<String> wallsOut) throws IOException {
+        JUDGE_SQL[0] = 0;
+        JUDGE_SQL[1] = 0;
+        JUDGE_SQL[2] = 0;
         // LOUD, NOT SILENT (upstream boundary batch 2): every model root and
         // every scope directory is a hardcoded upstream path — ten across the
         // five suites — and a moved one must fail by name, never walk an empty
@@ -130,7 +139,7 @@ public final class ChannelB {
             parseWalls.addAll(modelWalls);
             module = Compiler.parseSources(sources,
                     (name, msg) -> parseWalls.add(name + ": " + msg),
-                    com.legend.parser.Dialect.LEGEND_PLATFORM);
+                    com.legend.parser.GrammarLevel.LEGEND_PLATFORM);
             try {
                 // TENET #2 / platform-owned doctrine: a parsed NATIVE
                 // declaration is the SPEC of a function the platform
@@ -159,7 +168,7 @@ public final class ChannelB {
                 }
                 final String drop = src;
                 sources.removeIf(s -> s.name().equals(drop));
-                modelWalls.add(drop + ": MODEL-WALL " + first(e.getMessage()));
+                modelWalls.add(drop + ": MODEL-WALL " + first(words(e)));
             }
         }
         if (ctx == null) {
@@ -255,35 +264,251 @@ public final class ChannelB {
                     : NameResolver.resolveQueryIn(lambda, imports,
                             ctx.resolutionUniverse());
             // ONE universe with channel A (PctExecuteNative): the PCT runs
-            // with CORRECT_SQL_SUBSTRING_INDEXING on, as the engine's own
-            // testable runner does — the flag is the lowering's, so channel
+            // with no feature flag (A3, 2026-11-19; S130) — the flag is the lowering's, so channel
             // B's identity adapter carries it the same way
             // the agreement gate (the plan path program's step 6, 2026-10-18): both judges on plans, a disagreement
             // a failure naming both -- the lane's PASS floor carries it
+            if (Boolean.getBoolean("pct.channelb.twice")) {
+                String differs = twice(ctx, resolved);
+                if (differs != null) {
+                    return new Outcome(fqn, Status.FAIL, "G10: " + differs);
+                }
+            }
+            if (measuresJudgeSql()) {
+                judgeSql(ctx, resolved);
+            }
             TestExecution.runProgram(com.legend.Compiler.queryResolved(ctx, resolved),
-                    com.legend.testbackend.StorelessRuntime.RUNTIME, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), null, null,
-                    com.legend.ExecuteOptions.NONE.withFeatures(java.util.Set.of(
-                            com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING))
-                            // the tests' planning options: as-of joins the same row on every database (PlanOption)
-                            .withOptions(java.util.Set.of(com.legend.platform.PlanOption.DETERMINISTIC_AS_OF))
-                            // the walker-deletion program's measurement (2026-11-02): -Dpct.channelb.judge runs the
-                            // bodies under one judge, to read which shapes the program road plans for it
-                            .withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.valueOf(
-                                    System.getProperty("pct.channelb.judge", "BOTH")))
-                            // backwards-compatibility mode: the judges' leniencies that meet legend-engine's goldens
-                            // (the user, 2026-11-04: lite's own runs exact, PCT and the corpus in compat mode)
-                            .withEngineCompat(true));
+                    com.legend.testbackend.StorelessRuntime.RUNTIME, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), null, referee(),
+                    OPTIONS);
             return new Outcome(fqn, Status.PASS, "");
         } catch (java.sql.SQLException e) {
             // an assert failure arrives as the database's error() — a
             // REAL test failure; other SQL errors are failures too (the
             // diff against channel A adjudicates which are wire bugs)
-            return new Outcome(fqn, Status.FAIL, first(e.getMessage()));
+            return new Outcome(fqn, Status.FAIL, first(words(e)), flat(words(e)));
         } catch (RuntimeException e) {
             // compile/lowering walls — channel B cannot run the shape
             return new Outcome(fqn, Status.ERROR,
-                    e.getClass().getSimpleName() + ": " + first(e.getMessage()));
+                    e.getClass().getSimpleName() + ": " + first(words(e)),
+                    e.getClass().getSimpleName() + ": " + flat(words(e)));
         }
+    }
+
+    /** E-5d, the PCT half (the design doc's §5.9; ruled with E-5, 2026-11-13): the suite's JUDGE statements -- each
+     *  body's verdict groups' fused statements and the sides that keep statements of their own -- and their characters,
+     *  summed from each body's plan (planning only) under the lane's judge. Pinned per suite in {@code ratchets.tsv}
+     *  ({@link PctRatchets}) and held by the product's rule on the reference lane under BOTH ({@link ChannelBLane}). */
+    private static final long[] JUDGE_SQL = new long[3];
+
+    /** The judge statements and characters the last {@link #run} summed (both zero where it measured none). */
+    static long[] judgeSql() {
+        return JUDGE_SQL.clone();
+    }
+
+    /** Whether this run sums its judge SQL: asked ({@code -Dpct.channelb.judgeSql}, the ratchet's generator), or the
+     *  reference lane under lite's own rules and BOTH, the pin's own mode, outside the G10 twice lanes. The pins moved
+     *  to the LITE-PCT lane with A4 of the compatibility program, stage A ratified by the user 2026-11-19: the host
+     *  judge is the only judge in compatibility, so the compatibility lanes plan no database-judge statement and the
+     *  measure would read none -- the database judge's SQL is the product's alone, and lite's rules under both judges
+     *  are where it is planned (the user's ruling of 2026-11-19 ~20:05, "Keep judge yes and rebase": kept, re-based at
+     *  the merged batch's numbers, shrink-only from here). */
+    static boolean measuresJudgeSql() {
+        return Boolean.getBoolean("pct.channelb.judgeSql") || ChannelBLane.isReference() && lite()
+                && OPTIONS.planning().judgeMode() == com.legend.testplan.PlanningOptions.JudgeMode.BOTH
+                && !Boolean.getBoolean("pct.channelb.twice");
+    }
+
+    /** {@code resolved}'s judge statements added to {@link #JUDGE_SQL}; a body that does not plan adds none (its run
+     *  fails as it does without the measure). */
+    private static void judgeSql(ModelContext ctx, ValueSpecification resolved) {
+        com.legend.testexecutionplan.TestPlan plan;
+        try {
+            plan = TestExecution.planBody(com.legend.Compiler.queryResolved(ctx, resolved),
+                    com.legend.testbackend.StorelessRuntime.RUNTIME, OPTIONS);
+        } catch (com.legend.error.LegendCompileException | com.legend.error.NotImplementedException
+                | com.legend.sql.DialectCapability refused) {
+            // a planning refusal: the body adds no judge SQL (its run fails as it does without the measure); any other
+            // exception is a defect, and fails the body with its stack (G7, round 55f, 2026-11-15)
+            return;
+        } catch (UnsupportedOperationException e) {
+            // a render arm's refusal only (thrown from a dialect); the same class from elsewhere is a defect (B7)
+            StackTraceElement[] at = e.getStackTrace();
+            if (e.getClass() != UnsupportedOperationException.class || at.length == 0
+                    || !at[0].getClassName().startsWith("com.legend.sql.dialect.")) {
+                throw e;
+            }
+            return;
+        }
+        judgeSql(plan.steps());
+    }
+
+    /** The judge's statements as the runner sends them ({@code TestPlan.sent}, 2026-11-15, PR1's review: the fused
+     *  statement and the base sides alone had missed every wrapper, raising verdict and branch condition), and each
+     *  verdict step's plan JSON. */
+    private static void judgeSql(List<com.legend.testexecutionplan.TestPlan.TestStep> steps) {
+        for (com.legend.testexecutionplan.TestPlan.TestStep step : steps) {
+            if (step instanceof com.legend.testexecutionplan.TestPlan.Isolated pair) {
+                // BOTH isolated (2026-11-17, the orchestrator's (a)): the judge's SQL is the database judge's plan, as
+                // it was the fused program's (E-5c: BOTH planned the database judge's program)
+                judgeSql(pair.database().steps());
+                continue;
+            }
+            if (step instanceof com.legend.testexecutionplan.TestPlan.Verdicts
+                    || step instanceof com.legend.testexecutionplan.TestPlan.Branch) {
+                for (com.legend.executionplan.ExecutionPlan.Node n : com.legend.testexecutionplan.TestPlan.sent(step)) {
+                    nodeStatements(n);
+                }
+                JUDGE_SQL[2] += com.legend.testexecutionplan.TestPlanJson.writeStep(step).length();
+            }
+        }
+    }
+
+    private static void nodeStatements(com.legend.executionplan.ExecutionPlan.Node node) {
+        switch (node) {
+            case com.legend.executionplan.ExecutionPlan.Sequence s -> s.steps().forEach(ChannelB::nodeStatements);
+            case com.legend.executionplan.ExecutionPlan.TdsResult t -> addJudge(t.sql().statement());
+            case com.legend.executionplan.ExecutionPlan.Keyed k -> {
+                addJudge(k.keys().statement());
+                addJudge(k.body().statement());
+            }
+            case com.legend.executionplan.ExecutionPlan.Update u -> addJudge(u.sql().statement());
+            case com.legend.executionplan.ExecutionPlan.Effect e -> addJudge(e.sql().statement());
+            case com.legend.executionplan.ExecutionPlan.Check c -> addJudge(c.sql().statement());
+            case com.legend.executionplan.ExecutionPlan.Load l -> {
+            }
+            case com.legend.executionplan.ExecutionPlan.Constant c -> {
+            }
+        }
+    }
+
+    private static void addJudge(String statement) {
+        JUDGE_SQL[0]++;
+        JUDGE_SQL[1] += statement.length();
+    }
+
+    /** The rules the bodies run under ({@code -Dpct.channelb.rules}): COMPAT, the compatibility edge's (the lanes'
+     *  default), or LITE, lite's own (the LITE-PCT lane, the compatibility program's A4 gate: "lite's two judges agree
+     *  on the PCT", 2026-11-19). Any other value is refused by name. */
+    private static final String RULES = rules(System.getProperty("pct.channelb.rules", "COMPAT"));
+
+    private static String rules(String named) {
+        if (!named.equals("COMPAT") && !named.equals("LITE")) {
+            throw new IllegalArgumentException("-Dpct.channelb.rules=" + named + ": COMPAT or LITE");
+        }
+        return named;
+    }
+
+    /** Whether this run judges the bodies under lite's own rules ({@code -Dpct.channelb.rules=LITE}). */
+    static boolean lite() {
+        return RULES.equals("LITE");
+    }
+
+    /** The run hook: the compatibility edge's appeals (COMPAT), or none -- lite's own runs hear no appeal (LITE). */
+    private static com.legend.testexec.EdgeRun referee() {
+        return lite() ? com.legend.testexec.NoEdgeRun.NONE : com.legend.edge.AppealRun.with(null);
+    }
+
+    /** Channel B's options under the compatibility rules: the corpus's runtime features, the judge
+     *  {@code -Dpct.channelb.judge} names, compatibility mode and upstream's spellings. */
+    private static final com.legend.ExecuteOptions COMPAT_OPTIONS = com.legend.ExecuteOptions.recording(
+                    // the compatibility rules' runs carry the compatibility edge, which names its rules (census C1,
+                    // the orchestrator's ruling of 2026-11-17), never the product's NoEdge with a style
+                    new com.legend.edge.CompatEdge(new com.legend.edge.RawLedger.Recorder(),
+                            com.legend.executionplan.DataStores.none()), com.legend.executionplan.DataStores.none())
+            // no feature flag (A3 of the compatibility program, 2026-11-19: substring is Pure's by default, so the
+            // 2026-09-12 deviation of setting CORRECT_SQL_SUBSTRING_INDEXING is reversed; register S130)
+            // the tests' planning options: as-of joins the same row on every database (PlanOption)
+            .withOptions(java.util.Set.of(com.legend.platform.PlanOption.DETERMINISTIC_AS_OF))
+            // the host judge alone (rule 4 of the compatibility program's rules of record: "Host judge is only judge
+            // in compatibility"; A4 of the compatibility program, stage A ratified by the user 2026-11-19): until A4
+            // these runs took -Dpct.channelb.judge, BOTH by default; the test planner now refuses a database-judge
+            // verdict for a compatibility audience by name (TestPlanner.refuseTheDatabaseJudgeInCompatibility)
+            .withJudgeMode(compatJudge())
+            // legend-pure's texts, spelled by the edge (phase D's D1.0)
+            .withStyle(com.legend.edge.PureText.UPSTREAM);
+
+    /** The judge a run under the compatibility rules is planned for: the host's alone (rule 4; A4 of the compatibility program, stage A ratified by the user 2026-11-19).
+     *  {@code -Dpct.channelb.judge} was this runner's judge switch until A4. Set to anything but HOST under these
+     *  rules, it is refused by name rather than ignored, so a run asked for the database judge never reports a host
+     *  run in its place (invariant 4; the reviewer's S2, 2026-11-19; the corpus's MinimalCorpus refuses its 'both' the
+     *  same way). Lite's own rules ({@code -Dpct.channelb.rules=LITE}) still read it ({@link #LITE_OPTIONS}). */
+    private static com.legend.testplan.PlanningOptions.JudgeMode compatJudge() {
+        String asked = System.getProperty("pct.channelb.judge");
+        if (!lite() && asked != null && !asked.equals("HOST")) {
+            throw new IllegalArgumentException("-Dpct.channelb.judge=" + asked + ": under the compatibility rules the"
+                    + " host judge is the only judge (rule 4 of the compatibility program's rules of record); the"
+                    + " database judge runs under lite's own rules, -Dpct.channelb.rules=LITE");
+        }
+        return com.legend.testplan.PlanningOptions.JudgeMode.HOST;
+    }
+
+    /** Channel B's options under lite's own rules (the compatibility judges homework's prototype, H6-judges.md 5.1):
+     *  the product's (no edge, the product's style and default features), as-of joins the same row on every database,
+     *  and the judge {@code -Dpct.channelb.judge} names, BOTH by default. */
+    private static final com.legend.ExecuteOptions LITE_OPTIONS = com.legend.ExecuteOptions.NONE
+            .withOptions(java.util.Set.of(com.legend.platform.PlanOption.DETERMINISTIC_AS_OF))
+            .withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.valueOf(
+                    System.getProperty("pct.channelb.judge", "BOTH")));
+
+    private static final com.legend.ExecuteOptions OPTIONS = lite() ? LITE_OPTIONS : COMPAT_OPTIONS;
+
+    /**
+     * G10'S GUARD FOR A TEST BODY (O5's term, the user's ruling of 2026-11-13: "a body planned and run twice answers the
+     * same"): under {@code -Dpct.channelb.twice=true}, each body is typed and planned twice, and the two test plans
+     * must be byte for byte the same JSON. It is then run twice, each run on a fresh connection, and the two runs must
+     * end alike (a pass, or the same failure's class and text) and tell the same verdicts in the same order. Null
+     * where they agree, else what differs; the body's own run follows as usual.
+     */
+    private static @com.legend.base.Nullable String twice(ModelContext ctx, ValueSpecification resolved) {
+        return twice(() -> com.legend.testexecutionplan.TestPlanJson.write(TestExecution.planBody(
+                        com.legend.Compiler.queryResolved(ctx, resolved), com.legend.testbackend.StorelessRuntime.RUNTIME,
+                        OPTIONS)),
+                () -> recorded(ctx, resolved));
+    }
+
+    /** {@link #twice(ModelContext, ValueSpecification)}'s comparison over its two halves: {@code plan} plans the body
+     *  as JSON, {@code run} runs it and answers its verdicts and end. Each is called twice; null where both pairs
+     *  agree, else what differs (the guard's own test, ChannelBTwiceTest, plants each difference). */
+    static @com.legend.base.Nullable String twice(java.util.function.Supplier<String> plan,
+            java.util.function.Supplier<List<String>> run) {
+        String first = plan.get();
+        String second = plan.get();
+        if (!first.equals(second)) {
+            int at = 0;
+            while (at < Math.min(first.length(), second.length()) && first.charAt(at) == second.charAt(at)) {
+                at++;
+            }
+            return "planned twice, two plans: they part at character " + at + ": "
+                    + first.substring(at, Math.min(first.length(), at + 80)) + " | "
+                    + second.substring(at, Math.min(second.length(), at + 80));
+        }
+        List<String> one = run.get();
+        List<String> two = run.get();
+        return one.equals(two) ? null : "run twice, two answers: " + one + " | " + two;
+    }
+
+    /** One run of the body on a fresh connection: each verdict as told, then how the run ended. */
+    private static List<String> recorded(ModelContext ctx, ValueSpecification resolved) {
+        List<String> told = new java.util.ArrayList<>();
+        com.legend.testexecutionplan.AssertListener listener = (name, pass, detail) ->
+                told.add(name + (pass ? " pass" : " FAIL " + detail));
+        try (Connection conn = org.finos.legend.lite.pct.extension.PctBackend.connect()) {
+            TestExecution.runProgram(com.legend.Compiler.queryResolved(ctx, resolved),
+                    com.legend.testbackend.StorelessRuntime.RUNTIME,
+                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), listener, referee(),
+                    OPTIONS);
+            told.add("ended: pass");
+        } catch (java.sql.SQLException | RuntimeException e) {
+            told.add(ended(e));
+        }
+        return told;
+    }
+
+    /** How a run ended, for the twice guard's record: the failure's class and its WHOLE message -- two runs' records are
+     *  compared, and a clipped middle could hide a difference (2026-11-15, PR1's review; pinned by ChannelBTwiceTest's
+     *  planted difference past the old clip, the PR1 re-review's A7). */
+    static String ended(Exception e) {
+        return "ended: " + e.getClass().getSimpleName() + ": " + flat(words(e));
     }
 
     /** The census detail line: assert messages are MULTI-LINE
@@ -292,8 +517,13 @@ public final class ChannelB {
      * whole statement and then Spark's own words, which a head alone cut off -- the statement each judge writes
      * differs, the database's error does not). */
     private static String first(@com.legend.base.Nullable String msg) {
-        String m = String.valueOf(msg).replace("\n", " ⏎ ").trim();
+        String m = flat(msg);
         return m.length() <= 800 ? m : m.substring(0, 400) + "…" + m.substring(m.length() - 400);
+    }
+
+    /** The whole message, its newlines flattened as {@link #first}'s are: what a ledger row's text is matched in. */
+    private static String flat(@com.legend.base.Nullable String msg) {
+        return String.valueOf(msg).replace("\n", " ⏎ ").trim();
     }
 
     private static final class Declined extends RuntimeException {
@@ -495,5 +725,11 @@ public final class ChannelB {
     private static String simpleName(String fn) {
         int i = fn.lastIndexOf("::");
         return i < 0 ? fn : fn.substring(i + 2);
+    }
+
+    /** {@code e}'s message in legend-pure's words where it is a compile error of a kind (the edge's,
+     *  {@code PureMessages.compile}; D1.6, W7 of docs/records/d-plan-2026-11-16.md): PCT is legend-pure's suite. */
+    private static String words(Throwable e) {
+        return com.legend.edge.PureMessages.compile(e);
     }
 }

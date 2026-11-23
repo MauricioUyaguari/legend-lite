@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class DataSpaceIncludeTest {
 
     private static String model(String include, String dataSpaceDefault) {
-        return model(include, dataSpaceDefault, DataDeliveryMatrixTest.DATABASES.get(0));
+        return model(include, dataSpaceDefault, ProductReads.DATABASES.get(0));
     }
 
     private static String model(String include, String dataSpaceDefault, DatabaseType db) {
@@ -56,7 +56,7 @@ class DataSpaceIncludeTest {
                   *x::Trade: Relational { ~mainTable [x::DB]TRADE ticker: [x::DB]TRADE.TICKER }
                 )
                 ###Connection
-                """.formatted(dataSpaceDefault, include) + DataDeliveryMatrixTest.connection(db,
+                """.formatted(dataSpaceDefault, include) + ProductReads.connection(db,
                 "specification: LocalH2 { testDataSetupCSV: 'default\\nENTITY\\nID,NAME\\n1,Tesla\\n2,Acme\\n"
                         + "-----\\ndefault\\nTRADE\\nTICKER\\nAPPL\\n'; }; auth: DefaultH2;") + """
                 ###Runtime
@@ -68,13 +68,13 @@ class DataSpaceIncludeTest {
             + "->from(x::TradeMapping, x::RT)";
 
     private static List<List<String>> read(String model, DatabaseType db) throws Exception {
-        return DataDeliveryMatrixTest.read(new DataDeliveryMatrixTest.Data(model, QUERY, List.of(), "x::RT"), QUERY, db);
+        return ProductReads.read(new ProductReads.Data(model, QUERY, List.of(), "x::RT"), QUERY, db);
     }
 
     @Test
     @DisplayName("the data space's default context's mapping is included: its sets serve the including mapping")
     void includesTheDefaultContextsMapping() throws Exception {
-        for (DatabaseType db : DataDeliveryMatrixTest.DATABASES) {
+        for (DatabaseType db : ProductReads.DATABASES) {
             List<List<String>> viaDataSpace = read(model("include dataspace x::EntitySpace",
                     "defaultExecutionContext: 'default';", db), db);
             assertEquals(List.of(List.of("1", "Tesla"), List.of("2", "Acme")), viaDataSpace, db + "");

@@ -80,15 +80,17 @@ final class CheckedEnvelope {
             cases.add(new SqlExpr.Case(List.of(
                     new SqlExpr.Case.When(
                             SqlExpr.Call.of(SqlFn.IS_NULL, pred),
-                            defect(cc, new SqlExpr.StringLit(
-                                    "Unable to evaluate constraint ["
-                                            + cc.id() + "]: data not"
-                                            + " available - check your"
-                                            + " mappings"))),
+                            // CONSTRAINT_UNEVALUABLE, its constraint's id the operand: DATA in a successful answer, so
+                            // its words are worded here, at planning -- the one catalog's sentence over the constraint's
+                            // id, legend-engine's (stage B's BE, 2026-11-21: until then lite's own, the edge spelling
+                            // the engine's, D1.1)
+                            defect(cc, new SqlExpr.RaiseText(com.legend.sql.RaiseKind.CONSTRAINT_UNEVALUABLE,
+                                    List.of(new SqlExpr.StringLit(cc.id())),
+                                    com.legend.error.ErrorKind.CONSTRAINT_UNEVALUABLE.sentence(List.of(cc.id()))))),
                     new SqlExpr.Case.When(
                             SqlExpr.Call.of(SqlFn.NOT, pred),
                             defect(cc, msg))),
-                    new SqlExpr.NullLit()));
+                    new SqlExpr.NullLit(), SqlExpr.Reason.CARRIER));
         }
         SqlExpr own = cases.isEmpty() ? new SqlExpr.ArrayLit(List.of())
                 : SqlExpr.Call.of(SqlFn.LIST_FILTER,

@@ -32,6 +32,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class DialectVocabularyTest {
 
     private static final String DIALECTS = "core/src/main/java/com/legend/sql/dialect";
+    /** The edge's own dialects, held to deciding their whole vocabulary themselves (2026-11-13, phase D's O3:
+     *  legend-engine's text printers, EngineStyle*, moved here from sql/dialect; they went with that text, A2 of the
+     *  compatibility program, 2026-11-19, and the edge's dialect passes are PureText's nested classes, which extend a
+     *  product dialect each). */
+    private static final String EDGE_DIALECTS = "core/src/main/java/com/legend/edge";
 
     /** A vocabulary: the method each dialect declares, its parameters, and the switch that decides it (none where a
      *  dialect may take another's whole table, as a date format's parts are). */
@@ -49,14 +54,17 @@ class DialectVocabularyTest {
     void everyConcreteDialectDecidesEveryFunctionAndAggregateItself() throws IOException, ClassNotFoundException {
         List<String> wrong = new ArrayList<>();
         int dialects = 0;
-        for (Path f : SourceFiles.in(DIALECTS)) {
+        List<Path> files = new ArrayList<>(SourceFiles.in(DIALECTS));
+        files.addAll(SourceFiles.in(EDGE_DIALECTS));
+        for (Path f : files) {
             String file = f.getFileName().toString();
             if (!file.endsWith(".java") || file.equals("package-info.java")) {
                 continue;
             }
             String name = file.substring(0, file.length() - ".java".length());
-            Class<?> cls = Class.forName("com.legend.sql.dialect." + name, false,
-                    DialectVocabularyTest.class.getClassLoader());
+            String pkg = f.toString().replace('\\', '/').contains("/com/legend/edge/") ? "com.legend.edge."
+                    : "com.legend.sql.dialect.";
+            Class<?> cls = Class.forName(pkg + name, false, DialectVocabularyTest.class.getClassLoader());
             if (cls == AnsiSqlRenderer.class || !AnsiSqlRenderer.class.isAssignableFrom(cls)
                     || Modifier.isAbstract(cls.getModifiers())) {
                 continue;
@@ -98,7 +106,9 @@ class DialectVocabularyTest {
                 }
             }
         }
-        assertTrue(dialects >= 15, "the dialect package's concrete dialects were not found: " + dialects);
+        // 15 -> 12, 2026-11-19, A2 of the compatibility program (stage A ratified by the user 2026-11-19): the floor
+        // counted legend-engine's three text printers, deleted with that text (CP-4); the 12 are lite's dialects
+        assertTrue(dialects >= 12, "the dialect package's concrete dialects were not found: " + dialects);
         assertTrue(wrong.isEmpty(), "a dialect that does not decide its whole vocabulary itself: " + wrong);
     }
 
@@ -113,14 +123,17 @@ class DialectVocabularyTest {
     @Test
     void noDialectTakesAFunctionFromTheBase() throws IOException, ClassNotFoundException {
         List<String> wrong = new ArrayList<>();
-        for (Path f : SourceFiles.in(DIALECTS)) {
+        List<Path> files = new ArrayList<>(SourceFiles.in(DIALECTS));
+        files.addAll(SourceFiles.in(EDGE_DIALECTS));
+        for (Path f : files) {
             String file = f.getFileName().toString();
             if (!file.endsWith(".java") || file.equals("package-info.java")) {
                 continue;
             }
             String name = file.substring(0, file.length() - ".java".length());
-            Class<?> cls = Class.forName("com.legend.sql.dialect." + name, false,
-                    DialectVocabularyTest.class.getClassLoader());
+            String pkg = f.toString().replace('\\', '/').contains("/com/legend/edge/") ? "com.legend.edge."
+                    : "com.legend.sql.dialect.";
+            Class<?> cls = Class.forName(pkg + name, false, DialectVocabularyTest.class.getClassLoader());
             String code = code(Files.readString(f));
             for (String vocabulary : List.of("call", "reducer")) {
                 if (cls.getSuperclass() == AnsiSqlRenderer.class && code.contains("super." + vocabulary + "(")) {
@@ -158,14 +171,17 @@ class DialectVocabularyTest {
     void eachFunctionTableIsOneSwitchOfOneExpressionArms() throws IOException, ClassNotFoundException {
         List<String> wrong = new ArrayList<>();
         int tables = 0;
-        for (Path f : SourceFiles.in(DIALECTS)) {
+        List<Path> files = new ArrayList<>(SourceFiles.in(DIALECTS));
+        files.addAll(SourceFiles.in(EDGE_DIALECTS));
+        for (Path f : files) {
             String file = f.getFileName().toString();
             if (!file.endsWith(".java") || file.equals("package-info.java")) {
                 continue;
             }
             String name = file.substring(0, file.length() - ".java".length());
-            Class<?> cls = Class.forName("com.legend.sql.dialect." + name, false,
-                    DialectVocabularyTest.class.getClassLoader());
+            String pkg = f.toString().replace('\\', '/').contains("/com/legend/edge/") ? "com.legend.edge."
+                    : "com.legend.sql.dialect.";
+            Class<?> cls = Class.forName(pkg + name, false, DialectVocabularyTest.class.getClassLoader());
             if (cls == AnsiSqlRenderer.class || !AnsiSqlRenderer.class.isAssignableFrom(cls)
                     || Modifier.isAbstract(cls.getModifiers())) {
                 continue;

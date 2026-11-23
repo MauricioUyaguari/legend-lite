@@ -38,7 +38,7 @@ import java.util.Map;
  * inliner's splice, the natives' staging, the store resolution, the wire reconciliation) -- the one road both judges'
  * sides and the body's streamed answer (door 1, 2026-10-29) take.
  */
-final class JudgePlans {
+public final class JudgePlans {
 
     private JudgePlans() {
     }
@@ -54,7 +54,8 @@ final class JudgePlans {
             case com.legend.database.Target.Declared d ->
                     new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(d.connections().get(0)), null);
         };
-        return com.legend.planner.Targets.of(database, dialect);
+        // a test plan's target (Targets.forTest: the dialect's test session statements, G10, 2026-11-19)
+        return com.legend.planner.Targets.forTest(database, dialect);
     }
 
     /** {@code statement}'s typed-rows plan: the statement itself, its columns {@code schema}'s with their three
@@ -96,7 +97,7 @@ final class JudgePlans {
         }
         // each data: source read from the body's table of its content (B2a, 2026-11-11), made by the program ahead
         return PlanMaker.rowsOrGridKeyed(shape, columns, TypedRows.statement(env.read(statement)), env.dialect(),
-                env.target());
+                env.target(), env.plan().style());
     }
 
     /** {@code plan} with the definitions of the frames it references at its head -- the verdict batch's, in
@@ -104,7 +105,7 @@ final class JudgePlans {
      *  legacy executor attached them at its render ({@code BodyDriver.renderFor}), and a side's plan needs
      *  them the same way (the plan path program's step 6, 2026-10-18: `//spec:corpus_h2`'s database pass found
      *  660 row legs reading a frame that was not there). In host mode a frame is pasted, and the plan is its own. */
-    private static SqlQuery withFrames(SqlQuery plan, BodyDriver.ExecEnv env) {
+    static SqlQuery withFrames(SqlQuery plan, BodyDriver.ExecEnv env) {
         var batch = env.verdictBatch();
         return batch == null ? plan : com.legend.sql.FrameCtes.attach(plan, batch.frames());
     }
@@ -123,11 +124,6 @@ final class JudgePlans {
             @Override
             public boolean keyed(SqlQuery statement) {
                 return PlanMaker.readsGridReport(statement);
-            }
-
-            @Override
-            public TestPlan.JudgingRules rules() {
-                return env.options().judgingRules();
             }
 
             @Override
@@ -160,22 +156,19 @@ final class JudgePlans {
             BodyDriver.ExecEnv env, boolean identity, boolean fold,
             java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>,
                     TypedSpec> hook) {
-        SqlTextVerdicts.Collector collecting = env.engineText();
+        TextCollector collecting = env.engineText();
         if (collecting != null && collecting.planning()) {
             // an engine-text arm PLANNED for the program road (the test-is-the-product plan's M10b,
             // SqlTextVerdicts.plan): a text side is a constant of the plan (the verdict step's base), or our text a
             // side the step runs (M10c item 8), nothing sent at planning; any other side names the walk
             PlannedSide p = plannedSide(value, letPrefix, specs, env, identity, fold, hook);
             if (p.kind() != Kind.CONSTANT) {
-                // OUR text as a side the step runs and reads (M10c item 8): deferred, where the collector admits it
-                TypedSide deferred = collecting.defer(value, p, identity, fold,
+                // OUR text as a side the step runs and reads (M10c item 8): deferred, where the collector admits it,
+                // else refused by the collector; the side's kind and its planned root name what the arm would
+                // evaluate (the unplanned-assert census)
+                return collecting.defer(value, p, identity, fold,
                         hook == null ? null : hook instanceof AssertVerdicts.SpliceHook sh ? sh : hook::apply, env,
-                        letPrefix, specs);
-                if (deferred != null) {
-                    return deferred;
-                }
-                // the side's kind and its planned root name what the arm would evaluate (the unplanned-assert census)
-                throw new SqlTextVerdicts.NotAConstant(SqlTextVerdicts.NotAConstant.LABEL + p.kind()
+                        letPrefix, specs, p.kind()
                         + " " + (p.root() == null ? value.getClass().getSimpleName()
                                 : p.root().getClass().getSimpleName() + (p.root() instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
                                         ? " " + nc.callee().qualifiedName()
@@ -200,7 +193,7 @@ final class JudgePlans {
     // ---- a side as a plan value, and its shaping once read (the seam program's S2f, 2026-10-30) ------------------
 
     /** The five forms a planned side's rows are shaped as. */
-    enum Kind { CONSTANT, GRAPH, TABULAR, KEYED, VALUES }
+    public enum Kind { CONSTANT, GRAPH, TABULAR, KEYED, VALUES }
 
     /**
      * A side PLANNED before any run: the plan value a verdict step's base holds ({@link TestPlan.Side}: typed
@@ -211,7 +204,7 @@ final class JudgePlans {
      * {@link #evalSide} plans, runs and shapes one side in place for the two shapes one pass cannot plan (the
      * quantified unroll, the two-branch if; the user's ruling of 2026-10-30, S4's) and the engine-text asserts (S2i).
      */
-    record PlannedSide(TestPlan.Side side, Kind kind, BodyDriver.@com.legend.base.Nullable WrappedSide wrapped,
+    public record PlannedSide(TestPlan.Side side, Kind kind, BodyDriver.@com.legend.base.Nullable WrappedSide wrapped,
             @com.legend.base.Nullable TypedSide answered, @com.legend.base.Nullable TypedSpec root,
             Type.@com.legend.base.Nullable RelationType schema) {
 
@@ -273,7 +266,7 @@ final class JudgePlans {
      *  shaping reads, decided here from the side's declared type, so the run shapes the rows from the plan alone. A
      *  constant side's text is read back here, at planning, and checked against the compiler's value (a difference is
      *  the plan's text being wrong, raised by name). */
-    static com.legend.testexecutionplan.SideShape shapeOf(PlannedSide p) {
+    static com.legend.testexecutionplan.SideShape shapeOf(PlannedSide p, com.legend.database.PlanStyle style) {
         return switch (p.kind()) {
             case CONSTANT -> {
                 TypedSide answered = java.util.Objects.requireNonNull(p.answered(), "a constant side's value");
@@ -308,9 +301,10 @@ final class JudgePlans {
                 boolean tdsNullRoot = type.equals(new Type.ClassType(PlatformTypes.TDS_NULL_FQN));
                 boolean nullable = PlatformTypes.isAny(type) || tdsNullRoot
                         || type instanceof Type.ClassType ct && PlatformTypes.isVariant(ct);
+                long lower = info.multiplicity().requireBounded("result shape").lower();
+                String multiplicity = info.multiplicity().text();
                 yield sideShape(com.legend.testexecutionplan.SideShape.Kind.VALUES, type.typeName(), List.of(),
-                        List.of(), false, w.shape() == com.legend.plan.ResultShape.SCALAR,
-                        info.multiplicity().requireBounded("result shape").lower(), info.multiplicity().text(),
+                        List.of(), false, w.shape() == com.legend.plan.ResultShape.SCALAR, lower, multiplicity,
                         tdsNullRoot, nullable, PlatformTypes.isListCarrier(type));
             }
         };
@@ -323,6 +317,9 @@ final class JudgePlans {
         return new com.legend.testexecutionplan.SideShape(kind, typeName, columns, templates, oneCarrier, scalar, lower,
                 multiplicity, tdsNullRoot, nullableRoot, listCarrier);
     }
+
+    // (sizeWords, a required side's refusal of no rows worded at planning in the style's words: deleted with
+    // stage B's B1, 2026-11-20, errors as records -- the run raises the refusal as its record)
 
     private static com.legend.testexecutionplan.SideShape.Column shapeColumn(Type.Column c) {
         return new com.legend.testexecutionplan.SideShape.Column(c.name(), c.type().typeName(),
@@ -342,7 +339,7 @@ final class JudgePlans {
         return new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
                 List.of(new ExecutionPlan.Column(outs.get(0).name(), "String", new ExecutionPlan.Multiplicity(0, 1),
                         com.legend.executionplan.ColumnFacts.slot(outs.get(0).type()), null, null)),
-                PlanMaker.sql(plan, env.dialect(), env.target()));
+                PlanMaker.sql(plan, env.dialect(), env.target(), env.plan().style()));
     }
 
     private static PlannedSide tabularPlanned(BodyDriver.WrappedSide w, BodyDriver.ExecEnv env,
@@ -356,7 +353,8 @@ final class JudgePlans {
             // column, the columns its result reports read from the real run (the seam program's S3c, 2026-10-30;
             // until then WireProbe.staticized framed it by a describe at planning)
             ExecutionPlan.TdsResult reported = new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.RELATION,
-                    List.of(), PlanMaker.sql(env.read(withFrames(plan, env)), env.dialect(), env.target()));
+                    List.of(), PlanMaker.sql(env.read(withFrames(plan, env)), env.dialect(), env.target(),
+                            env.plan().style()));
             return new PlannedSide(new TestPlan.Side.Rows(reported), Kind.TABULAR, w, null, root,
                     new Type.RelationType(List.of()));
         }
@@ -372,7 +370,8 @@ final class JudgePlans {
             SqlQuery framed = env.read(withFrames(plan, env));
             com.legend.sql.SqlSource.Pivot pivot = java.util.Objects.requireNonNull(
                     com.legend.lowering.KeyedPivot.dynamic(framed), "a dynamic pivot side whose plan holds no such pivot");
-            ExecutionPlan.Keyed keyed = PlanMaker.keyed(framed, pivot, schema, env.dialect(), env.target());
+            ExecutionPlan.Keyed keyed = PlanMaker.keyed(framed, pivot, schema, env.dialect(), env.target(),
+                    env.plan().style());
             return new PlannedSide(new TestPlan.Side.KeyedRows(keyed), Kind.KEYED, w, null, root, schema);
         }
         // a grid that is a UNION ALL read in its branches' order, the order the database judge numbers it by

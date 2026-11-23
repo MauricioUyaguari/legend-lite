@@ -73,17 +73,107 @@ public final class PeRatchets {
                     + " that head): their tests' models (TestDataRoutesTest's temporal keys, TdsTemporalCellTest,"
                     + " EngineSeedRowTest's refusals, DuckDbOutputPlanTest's every-type and decimal-sum tables, the"
                     + " snapshot-copy and output-plan tests)",
+            "own_corpus.matched 3211 -> 3221 (2026-11-13, claude/total-wall-d with main merged onto total-wall-e,"
+                    + " 8f0037994d, found by //:generated on 3a711976af): as measured, not attributed -- the merge"
+                    + " joined D's, main's and E's new tests (RaisedKindTest, ErrorKindTest, EdgeSpellingHookTest,"
+                    + " LetBindingTest, FusedHostColumnsTest and their siblings); the ten models were not traced one by"
+                    + " one",
+            "own_corpus.matched 3221 -> 3222 (2026-11-13, D3 and S341 on claude/total-wall-e): TypeToStringTest's model"
+                    + " (its d3::Car class)",
             "own_corpus.matched 3211 -> 3246 (2026-11-13, main's #95 merged into the timeseries branch, 599d3c4c8, PR"
                     + " #81; the branch read 3126 alone at 27a35760b): the timeseries branch's tests' models (the #TS"
                     + " island's, the library's, the documents', the adversarial fixture's and the frame and as-of"
                     + " tests')",
+            "own_corpus.matched 3222/3246 -> 3257 (2026-11-14, merged main 3a217086a (#81) into claude/total-wall-e, measured on"
+                    + " the merged tree):"
+                    + " both sides' models joined, 3222 + 3246 - 3211 = 3257, not one side's number",
+            "own_corpus.matched 3246 -> 3251 (2026-11-14, main 3a217086a (#81) merged into claude/total-wall-d,"
+                    + " whose own tests had not been measured: phase D's, the edge's and the raise kinds'), as measured"
+                    + " on the merged tree, not attributed",
+            "own_corpus.matched 3257/3251 -> 3257 (2026-11-14, claude/total-wall-d 392ce271b merged into"
+                    + " claude/total-wall-e, as measured): D's added models were already E's, through E's earlier merge of D",
             "own_corpus.matched 3211 -> 3226 (2026-11-14, C4's must-haves M1-M5, found red by the gate on b915e29405):"
                     + " the stream's new tests' models (PreQuotedNamesTest's H2 model for the auditor's FILE_READ case among"
                     + " them)",
             "own_corpus.matched 3226, 3246 -> 3261 (2026-11-14, merged main 3a217086a (#81) into the separation stream,"
                     + " measured by //parser-equivalence:update_ratchets on the merged tree): both sides' models together",
+            "own_corpus.matched 3261 -> 3266 (2026-11-15, main cf865632c (#101, C4) merged into claude/total-wall-d,"
+                    + " measured by //parser-equivalence:update_ratchets on the merged tree): both sides' models together",
             "own_corpus.matched 3261 -> 3262 (2026-11-15, C5-J, found by the gate on its branch): its new tests' models,"
                     + " measured by //parser-equivalence:update_ratchets",
+            "own_corpus.matched 3266, 3262 -> 3267 (2026-11-15, the merge of #106 into #104: both sides' tests'"
+                    + " models together; TO RE-MEASURE by //parser-equivalence:update_ratchets after the build)",
+            "own_corpus.matched 3257/3261 -> 3272 (2026-11-15, merged main cf865632c (#101) into claude/total-wall-e,"
+                    + " measured on the merged tree): E's 3257 and C4's fifteen (3261 - 3246), joined",
+            "own_corpus.matched 3272/3262 -> 3273 (2026-11-15, main 0c9032f56 (C5-J's 3261 -> 3262) merged into"
+                    + " claude/total-wall-e, measured on the merged tree): C5-J's one new model joined E's",
+            "own_corpus.matched 3267/3273 -> TO RE-MEASURE (2026-11-16, W1 of docs/records/d-plan-2026-11-16.md: E's PR1"
+                    + " merged into D's stage, both sides' models together; by //parser-equivalence:update_ratchets)",
+            "own_corpus.matched 3273 -> 3281 (2026-11-16, D's stage at 97c178a44, the first full CI's parser_equivalence"
+                    + " lane): eight more of lite's own models match, a ratchet UP",
+            "own_corpus.matched 3281 -> 3284 (2026-11-16, D's stage: PlanDeclaresItsRaisesTest's MongoDB model written"
+                    + " as the reference grammar reads it -- serverURLs [localhost:27017], where an IP address was refused"
+                    + " (GRAMMAR-REFUSAL-nullmsg, stage-linux 43917161620) -- and the stage's new test models; UP)",
+            "own_corpus.matched 3284 -> 3287 (2026-11-17, phase D's Phase 2, 8d38788b0: InterimEdgeSitesTest's model --"
+                    + " its s::DB, s::Conn and s::RT -- matches the reference grammar; UP)",
+            "own_corpus.matched 3287 -> 3290 (2026-11-17, A1 0902f0f33 (its 1c18e97f4): BoundaryLiteExportsTest's model --"
+                    + " its t::P, t::DB and t::M -- matches the reference grammar; UP; stage-linux run 44097841621)",
+            "own_corpus.matched 3290 -> 3302 (2026-11-18, D's train 8, measured on d-int8 ce6132f60: twelve more own-corpus"
+                    + " models, added by trains 7 and 8's tests, match the reference grammar (red on d-int7 a789d7095 too, E-P5's"
+                    + " report); UP)",
+            "own_corpus.matched 3302 -> 3309 (2026-11-18, the host train claude/total-wall-h-datacube at cd7d1eece, found by"
+                    + " its gate pass (update_ratchets_test): seven more own-corpus models, added by the host train's tests, match"
+                    + " the reference grammar, measured by //parser-equivalence:update_ratchets on its tree (D's d-int18 measures"
+                    + " 3302); a floor rising, UP)",
+            "own_corpus.matched 3309 -> 3310 (2026-11-18, PR #118 fix round: one more own-corpus model, added by the"
+                    + " batch's tests, matches the reference grammar; UP)",
+            "own_corpus.matched 3310 -> 3309 (2026-11-19, A2 of the compatibility program: PureV1SqlTextTest's model"
+                    + " joins, LegacyTextTest's models leave with the printers; net -1, measured; DOWN -- the line's"
+                    + " '3310 -> 3311 ... UP' corrected on the stage-A batch by census B2's classification, c2269b7b4)",
+            "own_corpus.matched 3310 -> 3312 (2026-11-19, A3 piece 3 (the detector), ruled by the user 2026-11-19 ~20:10"
+                    + " ('Yes', to the owner's question on these three moves): two more own-corpus elements, from"
+                    + " PureMeaningCheckTest's model text, match the reference grammar (a verdict is per element); UP)",
+            "own_corpus.matched 3312 -> 3315 (2026-11-19, A3 piece 3's review fixes (the independent reviewer's record"
+                    + " 88e3def8, M1), under the user's ruling of 2026-11-19 ~20:10 ('Yes' to the parser-equivalence"
+                    + " ratchet regenerated for the detector's test models, the final value regenerated on the merged"
+                    + " tree; applied to this move by the compat owner, ~20:57): PureMeaningCheckTest's new one-line"
+                    + " declarations (an M2M target class, an auth class, a class holding a function value, a function"
+                    + " whose body does not type) are new own-corpus candidates, and the measured count of elements"
+                    + " matching the reference grammar rises by three, 3312 + 3 = 3315; on the merged batch with A2's"
+                    + " move (3310 -> 3311), 3310 + 2 + 3 + 1 = 3316 expected, regenerated on the merged tree; UP)",
+            "own_corpus.matched 3309/3315 -> 3314 (2026-11-19, the stage-A batch's merged tree -- A2, A5, A4, main, the"
+                    + " parser-parity memo and A3's detector -- measured by //parser-equivalence:update_ratchets there,"
+                    + " under the user's ruling of 2026-11-19 ~20:10: 3310 - 1 (A2, census B2's corrected DOWN) + 2 + 3"
+                    + " (A3) = 3314, not the 3316 the line above expected from A2's uncorrected +1; UP)",
+            "own_corpus.matched 3315 -> 3321 (2026-11-19, A3 piece 3's section fix (the judges' fast loop on the batch:"
+                    + " parser_parity found six of PureMeaningCheckTest's model literals without their ###Section"
+                    + " headers), under the user's ruling of 2026-11-19 ~20:10 (the ratchet regenerated for the"
+                    + " detector's test models): each non-Pure element's literal now carries its own header, so the six"
+                    + " elements (a Database, two Mappings, a Connection, two Runtimes) parse on the reference grammar"
+                    + " and match, 3315 + 6 = 3321; the class holding a function value (lite's own dialect, which"
+                    + " the reference grammar refuses) is replaced by a lambda read from a collection; the merged value"
+                    + " is regenerated on the merged tree; UP)",
+            "own_corpus.matched 3314/3321 -> 3325 (2026-11-19, the stage-A batch's merged tree with the detector's section"
+                    + " fix, measured by //parser-equivalence:update_ratchets there: 3314 + 6 (the section fix, under the"
+                    + " user's ruling of 2026-11-19 ~20:10) + 5 (the batch's InCollectionSpliceRefusalTest model, a Class,"
+                    + " a Database, a Mapping, a Connection and a Runtime, which match the reference grammar; 3320 measured"
+                    + " without it; a floor rising, listed for the user's word at the batch PR) = 3325; UP)",
+            "own_corpus.matched 3325 -> 3327 (2026-11-20, the stage-A batch with B1's native and the engine wiring: B1's"
+                    + " EngineSubstitutesTest model literals take their ###Section headers, so its Database and its"
+                    + " Runtime parse on the reference grammar and match; measured by //parser-equivalence:update_ratchets;"
+                    + " a floor rising, listed for the user's word at the batch PR; UP)",
+            "own_corpus.matched 3327 -> 3330 (2026-11-20, A3's follow-up on claude/compat-a3-engine-followup, the"
+                    + " reviewer's should on 67fa4df51: PureMeaningPostgresTest's model, a Database, a Class and a"
+                    + " Mapping, which match the reference grammar (its Connection and Runtime carry the backend's text,"
+                    + " not a literal); measured by //parser-equivalence:update_ratchets; a floor rising, the same kind the"
+                    + " user's word of 2026-11-19 ~20:10 covered for the detector's test models, listed for the user's"
+                    + " word at the PR; UP)",
+            "own_corpus.matched 3330 -> 3344 (2026-11-21, stage B's BE on claude/compat-error-model: fourteen more"
+                    + " of core's test model literals, added or changed by the branch's tests (the last six the BE audit"
+                    + " 5's MappingNormalizerTest models, which Windows' parser_parity caught at 3338), match the"
+                    + " reference grammar;"
+                    + " measured by //parser-equivalence:update_ratchets; a floor rising, listed for the user's word at"
+                    + " the BE PR; UP)",
             "mutation.deck 950 -> 1032 (2026-11-14, Studio's grammar roundtrip, the parser tier): the mutants of its four"
                     + " new positive sibling fixtures (doc-before-activators-and-services,"
                     + " servicestore-content-pattern-escapes, filegeneration-dotted-config-keys, diagram-quoted-view-ids)",
@@ -134,7 +224,11 @@ public final class PeRatchets {
                     + " roundtrip's post-pin constructs, measured 3323 -> 3346 on its first base): their tests' models"
                     + " (RelationMappingEmbeddedLinesTest, RelationMappingRowAccessorTest, ColSpecAnnotationsPrintTest;"
                     + " DataQualityAdditionalColumnsTest's is refused by the 4.145.0 referee, S422), measured by"
-                    + " //parser-equivalence:update_ratchets");
+                    + " //parser-equivalence:update_ratchets",
+            "mutation.deck 950/1032 -> 1032 and own_corpus.matched 3344/3420 -> 3502 (2026-11-23, the sync of"
+                    + " the fork's studio-compatibility-dev 4d2e1ea77 with neema2's main 2942e9838: both sides' models and"
+                    + " fixtures together, measured by //parser-equivalence:update_ratchets on the merged tree: upstream's 3344 and"
+                    + " the branch's 158 new matches (3262 -> 3420), joined; the branch's 82 new mutants)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

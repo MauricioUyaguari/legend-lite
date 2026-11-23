@@ -39,21 +39,6 @@ public final class VerdictQueries {
      * {@code from(<the producer's mapping>)}, runtime left to the
      * executing env. SqlTextVerdicts fetches and judges; the mint is
      * compiler emission (Invariant 7). */
-    /** The FIRST-statement form of an indexed SQL read ({@code
-     * sqlRemoveFormatting($res, n)} → {@code sqlRemoveFormatting($res)}):
-     * the verdict arm reads our one statement where the engine's plan
-     * names its n-th (batch 67). Compiler-layer minting (Invariant 7). */
-    public static com.legend.compiler.spec.typed.TypedUserCall firstStatementRead(
-            com.legend.compiler.spec.typed.TypedUserCall read) {
-        return new com.legend.compiler.spec.typed.TypedUserCall(
-                read.callee(), List.of(read.args().get(0)), read.info());
-    }
-
-    /** A String literal as a typed node: a text the planner wrote, as a verdict step's constant side (the engine-text
-     *  arms' two texts, the test-is-the-product plan's M10b). */
-    public static TypedSpec text(String text) {
-        return new TypedCString(text, scalar(Type.Primitive.STRING));
-    }
 
     /** {@code assertEquals(expected, actual)} as a typed call — the meaning
      * of a dual-golden assert once its golden is chosen (the verdict arm
@@ -72,45 +57,6 @@ public final class VerdictQueries {
                 .orElse(null);
     }
 
-    public static TypedSpec fromWrapped(TypedSpec query,
-            com.legend.compiler.spec.typed.TypedPackageableRef mapping) {
-        return fromWrapped(query, mapping,
-                com.legend.compiler.spec.typed.ExecutionContext.NONE);
-    }
-
-    /** The verdict's read wrapped in the FRAME's own bound context (the
-     * producer's post-processors, time zone, options) under the mapping. */
-    public static TypedSpec fromWrapped(TypedSpec query,
-            com.legend.compiler.spec.typed.TypedPackageableRef mapping,
-            com.legend.compiler.spec.typed.ExecutionContext base) {
-        com.legend.base.RunScope.planning("wrap a verdict's read");
-        return new com.legend.compiler.spec.typed.TypedFrom(query,
-                base.withMapping(java.util.Optional.of(mapping)), query.info());
-    }
-
-    /** assertSameSQL's OUR-TEXT read (charter §8.3b): the
-     * {@code sqlRemoveFormatting($result)} call over the assert's own
-     * Result argument — the envelope splice folds it to the frame's
-     * EXECUTED SQL text (ResultEnvelopeSplice.sqlProducerCall). Null
-     * when the model does not know the Result overload (the arm then
-     * leaves the shape on its current path). */
-    public static @com.legend.base.Nullable TypedSpec sqlStripRead(
-            TypedSpec resultArg,
-            com.legend.compiler.element.ModelContext ctx) {
-        for (var f : ctx.findFunction(
-                ResultEnvelopeSplice.SQL_REMOVE_FORMATTING_FQN)) {
-            if (f.parameters().size() == 1
-                    && f.parameters().get(0).type()
-                            != Type.Primitive.STRING) {
-                return new com.legend.compiler.spec.typed.TypedUserCall(f,
-                        List.of(resultArg),
-                        new ExprType(Type.Primitive.STRING,
-                                Multiplicity.Bounded.ONE));
-            }
-        }
-        return null;
-    }
-
     /** assertSameSQL's OUR-ROWS read (§8.3b): {@code $result.values} —
      * the envelope splice swaps it for the frame's typed chain
      * (ResultEnvelopeSplice.valuesRead), which carries the REAL
@@ -118,113 +64,6 @@ public final class VerdictQueries {
     public static TypedSpec valuesRead(TypedSpec resultArg) {
         return new com.legend.compiler.spec.typed.TypedPropertyAccess(
                 resultArg, "values", resultArg.info());
-    }
-
-    /** SQLTEXT charter §5 (the plan replayer, slice 4) — REFEREE
-     * PARAMETER BINDINGS for a plan lambda: each scalar parameter
-     * binds a fixed referee value as a minted {@code TypedLet} (the
-     * verdict layer appends them to the let prefix — parameters
-     * resolve exactly like test-body lets, no substitution walk).
-     * {@code spellings} pairs each name with the SQL literal TEXT the
-     * golden's <code>${'$'}{name}</code> hole fills with (the golden
-     * supplies its own quoting). Null when any parameter is not a
-     * bindable scalar (enum/class/collection — the arm declines
-     * COUNTED; the charter's measure-first residue). */
-    public record PlanBindings(List<TypedSpec> lets,
-            java.util.Map<String, String> spellings,
-            java.util.Map<String, List<String>> lists) {
-        public PlanBindings(List<TypedSpec> lets,
-                java.util.Map<String, String> spellings) {
-            this(lets, spellings, singletons(spellings));
-        }
-
-        private static java.util.Map<String, List<String>> singletons(
-                java.util.Map<String, String> spellings) {
-            java.util.Map<String, List<String>> out = new java.util.LinkedHashMap<>();
-            spellings.forEach((k, v) -> out.put(k, List.of(v)));
-            return out;
-        }
-    }
-
-    public static @com.legend.base.Nullable PlanBindings refereeBindings(
-            com.legend.compiler.spec.typed.TypedLambda lam) {
-        Type.FunctionType ft = com.legend.compiler.element.type
-                .PlatformTypes.functionTypeOf(lam.info().type());
-        if (ft == null || ft.params().size() != lam.parameters().size()) {
-            return null;
-        }
-        List<TypedSpec> lets = new java.util.ArrayList<>();
-        java.util.Map<String, String> spellings =
-                new java.util.LinkedHashMap<>();
-        java.util.Map<String, List<String>> lists =
-                new java.util.LinkedHashMap<>();
-        for (int i = 0; i < lam.parameters().size(); i++) {
-            String name = lam.parameters().get(i);
-            Type pt = ft.params().get(i).type();
-            TypedSpec value;
-            String spelling;
-            if (ft.params().get(i).multiplicity().isMany()
-                    && (pt == Type.Primitive.STRING
-                            || pt == Type.Primitive.INTEGER)) {
-                // a COLLECTION parameter (batch 66): two fixed referee
-                // elements — the plan's template operations
-                // (collectionSize, renderCollection) evaluate over them
-                // at the referee; our side runs the same two
-                boolean str = pt == Type.Primitive.STRING;
-                List<TypedSpec> elems = str
-                        ? List.of(new com.legend.compiler.spec.typed.TypedCString(
-                                        "A", scalar(pt)),
-                                new com.legend.compiler.spec.typed.TypedCString(
-                                        "B", scalar(pt)))
-                        : List.of(new com.legend.compiler.spec.typed.TypedCInteger(
-                                        22L, scalar(pt)),
-                                new com.legend.compiler.spec.typed.TypedCInteger(
-                                        23L, scalar(pt)));
-                ExprType many = new ExprType(pt, Multiplicity.Bounded.ZERO_MANY);
-                lets.add(new com.legend.compiler.spec.typed.TypedLet(name,
-                        new com.legend.compiler.spec.typed.TypedCollection(
-                                elems, many), many));
-                lists.put(name, str ? List.of("A", "B") : List.of("22", "23"));
-                continue;
-            }
-            if (pt == Type.Primitive.STRING) {
-                value = new com.legend.compiler.spec.typed.TypedCString(
-                        "A", scalar(Type.Primitive.STRING));
-                spelling = "A";
-            } else if (pt == Type.Primitive.INTEGER) {
-                value = new com.legend.compiler.spec.typed.TypedCInteger(
-                        22L, scalar(Type.Primitive.INTEGER));
-                spelling = "22";
-            } else if (pt == Type.Primitive.FLOAT
-                    || pt == Type.Primitive.NUMBER) {
-                value = new com.legend.compiler.spec.typed.TypedCFloat(
-                        1.0, new java.math.BigDecimal("1.0"),
-                        scalar(Type.Primitive.FLOAT));
-                spelling = "1.0";
-            } else if (pt == Type.Primitive.BOOLEAN) {
-                value = new com.legend.compiler.spec.typed.TypedCBoolean(
-                        true, scalar(Type.Primitive.BOOLEAN));
-                spelling = "true";
-            } else if (pt == Type.Primitive.DATE
-                    || pt == Type.Primitive.STRICT_DATE) {
-                value = new com.legend.compiler.spec.typed.TypedCDate(
-                        com.legend.values.PureDateLiteral.parse(
-                                "2015-10-16"), scalar(pt));
-                spelling = "2015-10-16";
-            } else if (pt == Type.Primitive.DATE_TIME) {
-                value = new com.legend.compiler.spec.typed.TypedCDate(
-                        com.legend.values.PureDateLiteral.parse(
-                                "2015-10-16T00:00:00"), scalar(pt));
-                spelling = "2015-10-16 00:00:00";
-            } else {
-                return null;
-            }
-            lets.add(new com.legend.compiler.spec.typed.TypedLet(
-                    name, value, value.info()));
-            spellings.put(name, spelling);
-            lists.put(name, List.of(spelling));
-        }
-        return new PlanBindings(lets, spellings, lists);
     }
 
     private static ExprType scalar(Type t) {
@@ -309,13 +148,13 @@ public final class VerdictQueries {
     }
 
     /** The message an {@code assert}/{@code assertFalse} under the vector contract fails with: its literal message
-     *  ({@code (3)} admits no other), else upstream's default for the base overload, "Assert failed"
-     *  (2026-11-04, the asserts-as-plan-nodes program: both judges printed the default over a caller's message --
-     *  AssertBarTest's forAll-zip-assert-message). */
-    public static String assertMessage(TypedSpec root) {
+     *  ({@code (3)} admits no other), else {@code otherwise}, the run's words of a condition's failure (the user's R1,
+     *  2026-11-18, PR #118: lite's sentence, legend-pure's the edge's alone; 2026-11-04: both judges printed the default
+     *  over a caller's message -- AssertBarTest's forAll-zip-assert-message). */
+    public static String assertMessage(TypedSpec root, String otherwise) {
         List<TypedSpec> a = com.legend.compiler.spec.typed.Calls.argsOf(root);
         return a.size() >= 2 && a.get(1) instanceof com.legend.compiler.spec.typed.TypedCString m ? m.value()
-                : "Assert failed";
+                : otherwise;
     }
 
     /** (1): rows the relation lane plans. */
@@ -398,43 +237,7 @@ public final class VerdictQueries {
     /** The frame variable's {@code .activities} read — the node the
      * splice hook resolves to the frame's own execute() call (the
      * verdict arms recover a frame's mapping through it). */
-    /** Whether a typed chain is a SUB-COLLECTION of a class extent:
-     * getAll through filter/sort/limit/slice/drop/from/first/last/toOne
-     * (the walk lane's extentSubset, on the typed tree). */
-    public static boolean extentSubset(TypedSpec n) {
-        return switch (n) {
-            case com.legend.compiler.spec.typed.TypedGetAll g -> true;
-            case com.legend.compiler.spec.typed.TypedFilter f ->
-                    extentSubset(f.source());
-            case com.legend.compiler.spec.typed.TypedSort s ->
-                    extentSubset(s.source());
-            case com.legend.compiler.spec.typed.TypedSortBy s ->
-                    extentSubset(s.source());
-            case com.legend.compiler.spec.typed.TypedLimit l ->
-                    extentSubset(l.source());
-            case com.legend.compiler.spec.typed.TypedSlice l ->
-                    extentSubset(l.source());
-            case com.legend.compiler.spec.typed.TypedDrop d ->
-                    extentSubset(d.source());
-            case com.legend.compiler.spec.typed.TypedFrom f ->
-                    extentSubset(f.source());
-            case com.legend.compiler.spec.typed.TypedNativeCall c when !c.args().isEmpty() -> {
-                String q = c.callee().qualifiedName();
-                String simple = q.substring(q.lastIndexOf(':') + 1);
-                yield switch (simple) {
-                    case "first", "last", "toOne", "take", "limit", "drop",
-                            "slice" -> extentSubset(c.args().get(0));
-                    default -> false;
-                };
-            }
-            default -> false;
-        };
-    }
-
-    public static TypedSpec activitiesRead(TypedSpec frameVar) {
-        return new com.legend.compiler.spec.typed.TypedPropertyAccess(
-                frameVar, "activities", frameVar.info());
-    }
+    // (extentSubset, the referee's replay gate: moved to the edge's ReplayGates, 2026-11-18, the edge audit's J40)
 
     /** {@code forAll(coll, x | <assert>)} — the engine's per-element
      * assert idiom (stringToFloat testProject: {@code [123.456, 100.001]
@@ -560,9 +363,9 @@ public final class VerdictQueries {
         return reduced;
     }
 
-    /** An expected literal collection's {@code ^TDSNull()} elements as the
-     * string {@code 'TDSNull'} (the golden convention's null-cell value;
-     * the peer rule spells it bare on the expected side). All-string
+    /** An expected literal collection's {@code ^TDSNull()} elements as
+     * present null cells ({@code TypedNullCell}, C5 step C, C-2: the String
+     * {@code 'TDSNull'} until then; the canon writes lite's bare null). All-string
      * afterwards → a String collection; otherwise the collection keeps
      * its mixed stamp (the literal channel). Minted HERE (Invariant 7: the
      * compiler layers own typed nodes), for the database-mode verdict. */
@@ -758,9 +561,11 @@ public final class VerdictQueries {
         for (com.legend.compiler.spec.typed.TypedSpec e : c.elements()) {
             if (e instanceof com.legend.compiler.spec.typed.TypedNewInstance ni
                     && com.legend.compiler.element.type.PlatformTypes.TDS_NULL_FQN
-                            .equals(ni.classFqn())) {
+                            .equals(ni.classFqn())
+) {
                 any = true;
-                out.add(new com.legend.compiler.spec.typed.TypedCString("TDSNull",
+                // a present null cell, typed (C5 step C, C-2: never the String 'TDSNull' it was spelled as)
+                out.add(new com.legend.compiler.spec.typed.TypedNullCell(
                         new com.legend.compiler.element.type.ExprType(
                                 com.legend.compiler.element.type.Type.Primitive.STRING,
                                 new com.legend.compiler.element.type.Multiplicity.Bounded(1, 1))));
@@ -897,26 +702,6 @@ public final class VerdictQueries {
         return Type.isRelation(source.info().type()) ? source : null;
     }
 
-    /** The relation restricted to one declared column (the Typer's own
-     * {@code select} node) — {@code schema} the PLANNED side's schema; null
-     * when the column is not declared. */
-    public static @com.legend.base.Nullable TypedSpec restrictedTo(TypedSpec relation,
-            @com.legend.base.Nullable Type.RelationType schema, String column) {
-        if (schema == null) {
-            return null;
-        }
-        Type.Column col = schema.columns().stream().filter(c -> c.name().equals(column))
-                .findFirst().orElse(null);
-        if (col == null) {
-            return null;
-        }
-        Type one = new Type.RelationType(List.of(col));
-        Type t = relation.info().type() instanceof Type.GenericType g
-                ? new Type.GenericType(g.rawFqn(), List.of(one), g.multArguments()) : one;
-        return new com.legend.compiler.spec.typed.TypedSelect(relation, List.of(column),
-                new ExprType(t, relation.info().multiplicity()));
-    }
-
     private static boolean isJoin(TypedNativeCall c) {
         String fqn = c.callee().qualifiedName();
         return PlatformTypes.STRING_MAKE_STRING.equals(fqn) || PlatformTypes.STRING_JOIN_STRINGS.equals(fqn);
@@ -956,169 +741,6 @@ public final class VerdictQueries {
         return foldedStringLiteral(s);
     }
 
-    /** The parsed golden: the language's own TDS literal (a typed VALUES
-     * relation of the rendered relation's schema) for a grid grammar, a
-     * typed literal collection for a flat join; or the reason it could not
-     * be brought to rows. {@code headerMismatch} is a STATIC verdict (both
-     * sides compile-time facts), never an unjudged. */
-    public record ParsedGolden(@com.legend.base.Nullable TypedSpec literal,
-            @com.legend.base.Nullable String reason, boolean headerMismatch) {
-        public static ParsedGolden of(TypedSpec literal) {
-            return new ParsedGolden(literal, null, false);
-        }
-        public static ParsedGolden declined(String reason) {
-            return new ParsedGolden(null, reason, false);
-        }
-    }
-
-    /** Brings a rendered golden to rows. {@code schema} is the rendered
-     * relation's schema for the grid grammars ({@code elementKind} unused);
-     * {@code elementKind} the collection's element kind for a flat join. */
-    public static ParsedGolden parseRendered(String text, RenderGrammar grammar,
-            @com.legend.base.Nullable Type.RelationType schema, @com.legend.base.Nullable Type elementKind) {
-        if (grammar instanceof RenderGrammar.Flat f) {
-            Type kind = elementKind;
-            if (!(kind instanceof Type.Primitive) && !(kind instanceof Type.EnumType)) {
-                return ParsedGolden.declined("rendered-text: flat join over a non-primitive element kind "
-                        + elementKind);
-            }
-            List<String> parts = text.isEmpty() ? List.of()
-                    : List.of(text.split(java.util.regex.Pattern.quote(f.sep()), -1));
-            List<TypedSpec> out = new ArrayList<>(parts.size());
-            for (String part : parts) {
-                if (part.equals("TDSNull")) {
-                    // a null element: the collection statement reads the
-                    // non-null elements, so the null's count is not judged
-                    return ParsedGolden.declined("rendered-text: a null element in a flat join");
-                }
-                TypedSpec e = cellLiteral(part, kind, false);
-                if (e == null) {
-                    return ParsedGolden.declined("rendered-text: element '" + part + "' is not a " + kind);
-                }
-                out.add(e);
-            }
-            return ParsedGolden.of(collectionOf(out));
-        }
-        if (schema == null || schema.columns().isEmpty() || !schema.dynamicColumns().isEmpty()) {
-            return ParsedGolden.declined("rendered-text: the rendered relation's columns are late-bound ("
-                    + (schema == null ? "no schema" : schema.columns().size() + " static, "
-                    + schema.dynamicColumns().size() + " dynamic") + ")");
-        }
-        List<String> names = schema.columns().stream().map(Type.Column::name).toList();
-        List<List<String>> rows = new ArrayList<>();
-        List<String> header;
-        if (grammar instanceof RenderGrammar.Csv csv && csv.rowSep().equals(",")) {
-            // toCSV->replace('\n', ','): the row boundaries are gone — the
-            // text is one cell sequence (RFC4180), header first, '' last
-            List<String> tokens = csvCells(text);
-            int width = names.size();
-            if (tokens.size() < width + 1 || !tokens.get(tokens.size() - 1).isEmpty()
-                    || (tokens.size() - 1) % width != 0) {
-                return ParsedGolden.declined("rendered-text: toCSV cells joined by ',' do not chunk"
-                        + " by the width " + width + " (" + tokens.size() + " cells)");
-            }
-            header = tokens.subList(0, width);
-            for (int i = width; i + width <= tokens.size() - 1; i += width) {
-                rows.add(tokens.subList(i, i + width));
-            }
-        } else if (grammar instanceof RenderGrammar.Csv csv) {
-            List<String> lines = List.of(text.split(java.util.regex.Pattern.quote(csv.rowSep()), -1));
-            if (lines.size() < 2 || !lines.get(lines.size() - 1).isEmpty()) {
-                return ParsedGolden.declined(
-                        "rendered-text: toCSV text without its header line and trailing newline");
-            }
-            header = csvCells(lines.get(0));
-            List<String> data = lines.subList(1, lines.size() - 1);
-            if (data.size() == 1 && data.get(0).isEmpty()) {
-                // the EMPTY relation prints one blank data line (the rows
-                // join's '\n' prefix); for one column the same text is one
-                // NULL cell — undecidable from the text
-                if (names.size() == 1) {
-                    return ParsedGolden.declined("rendered-text: one-column toCSV text with a blank line —"
-                            + " an empty relation or one NULL cell");
-                }
-            } else {
-                for (String line : data) {
-                    rows.add(csvCells(line));
-                }
-            }
-        } else if (grammar instanceof RenderGrammar.Tds) {
-            List<String> lines = List.of(text.split("\n", -1));
-            if (lines.size() < 3 || !lines.get(0).equals("#TDS")
-                    || !lines.get(lines.size() - 1).equals("#")) {
-                return ParsedGolden.declined("rendered-text: TDS text without its #TDS frame");
-            }
-            header = tdsHeader(lines.get(1));
-            for (String line : lines.subList(2, lines.size() - 1)) {
-                if (line.isEmpty()) {
-                    continue;   // an empty relation prints one blank rows segment
-                }
-                rows.add(List.of(stripIndent(line).split(",", -1)));
-            }
-        } else {
-            RenderGrammar.Rows r = (RenderGrammar.Rows) grammar;
-            header = names;
-            if (!text.isEmpty()) {
-                if (r.rowSep().equals(r.cellSep())) {
-                    // the cells flattened row-major: chunk by the width
-                    List<String> tokens = List.of(text.split(java.util.regex.Pattern.quote(r.cellSep()), -1));
-                    int width = names.size();
-                    if (tokens.size() % width != 0) {
-                        return ParsedGolden.declined("rendered-text: " + tokens.size()
-                                + " flattened cells do not chunk by the width " + width);
-                    }
-                    for (int i = 0; i < tokens.size(); i += width) {
-                        rows.add(tokens.subList(i, i + width));
-                    }
-                } else {
-                    for (String line : text.split(java.util.regex.Pattern.quote(r.rowSep()), -1)) {
-                        rows.add(List.of(line.split(java.util.regex.Pattern.quote(r.cellSep()), -1)));
-                    }
-                }
-            }
-        }
-        if (!header.equals(names)) {
-            return new ParsedGolden(null, "rendered-text: header " + header
-                    + " differs from the columns " + names, true);
-        }
-        List<Type> kinds = new ArrayList<>(names.size());
-        for (int c = 0; c < names.size(); c++) {
-            Type k = schema.columns().get(c).type();
-            kinds.add(k instanceof Type.ClassType ct && PlatformTypes.isAny(ct) && !rows.isEmpty()
-                    ? TdsChecker.inferredType(rows, c) : k);
-        }
-        List<List<String>> cells = new ArrayList<>();
-        List<Boolean> nullable = new ArrayList<>(java.util.Collections.nCopies(names.size(), false));
-        for (List<String> row : rows) {
-            if (row.size() != names.size()) {
-                return ParsedGolden.declined("rendered-text: a golden row has " + row.size()
-                        + " cells for " + names.size() + " columns (" + row + ")");
-            }
-            List<String> out = new ArrayList<>(row.size());
-            for (int c = 0; c < row.size(); c++) {
-                String cell = tdsCellText(row.get(c), kinds.get(c));
-                if (cell == null) {
-                    return ParsedGolden.declined("rendered-text: cell '" + row.get(c) + "' is not a "
-                            + kinds.get(c) + " (column " + names.get(c) + ")");
-                }
-                if (cell.isEmpty()) {
-                    nullable.set(c, true);
-                }
-                out.add(cell);
-            }
-            cells.add(out);
-        }
-        List<Type.Column> columns = new ArrayList<>(names.size());
-        for (int c = 0; c < names.size(); c++) {
-            Type.Column col = schema.columns().get(c);
-            columns.add(new Type.Column(col.name(), kinds.get(c),
-                    nullable.get(c) ? Multiplicity.Bounded.ZERO_ONE : col.multiplicity()));
-        }
-        return ParsedGolden.of(new com.legend.compiler.spec.typed.TypedTds(cells,
-                new ExprType(new Type.GenericType(PlatformTypes.TDS_RELATION_CLASS,
-                        List.of(new Type.RelationType(columns))), Multiplicity.Bounded.ONE)));
-    }
-
     /** The declared schema with its WIRE-DECIDED columns (String / unrefined
      * Number / Any — {@code dataTypeTransformer}'s identity arm) typed by the
      * plan's output SLOTS (the slot is the wire): a rendered golden's cell is
@@ -1144,99 +766,6 @@ public final class VerdictQueries {
             }
         }
         return changed ? new Type.RelationType(cols, declared.dynamicColumns()) : declared;
-    }
-
-    /** A late-bound grid's schema read off its PLAN's outputs (a raw
-     * executeInDb relation has no static columns; the plan's output kinds
-     * are wire facts). Null when an output's kind has no pure kind. */
-    public static @com.legend.base.Nullable Type.RelationType wireSchema(
-            List<com.legend.sql.OutputCol> outputs) {
-        List<Type.Column> cols = new ArrayList<>(outputs.size());
-        for (com.legend.sql.OutputCol o : outputs) {
-            Type kind = Type.kindOfSqlType(o.type());
-            // an output the wire does not kind (a raw SQL grid's column) is
-            // typed by the golden's own cells, as an unannotated TDS literal
-            // column is (TdsChecker.inferredType) — marked Any here
-            cols.add(new Type.Column(o.name(),
-                    kind == null ? new Type.ClassType(PlatformTypes.ANY) : kind,
-                    o.nullable() ? Multiplicity.Bounded.ZERO_ONE : Multiplicity.Bounded.ONE));
-        }
-        return cols.isEmpty() ? null : new Type.RelationType(cols);
-    }
-
-    /** A grid cell's text for the TDS literal: an empty / {@code TDSNull} /
-     * {@code null} cell is the null cell (empty text); a cell that is not of
-     * its column's kind is {@code null}. The literal's lowering types the
-     * text by the column ({@code Scalars.tdsCell}). */
-    private static @com.legend.base.Nullable String tdsCellText(String cell, Type kind) {
-        if (cell.isEmpty() || cell.equals("TDSNull") || cell.equals("null")) {
-            return "";
-        }
-        return cellLiteral(cell, kind, false) == null ? null : cell;
-    }
-
-    /** One cell as the typed literal of its declared kind; {@code null} when
-     * the text is not of that kind. A grid's empty / {@code TDSNull} /
-     * {@code null} cell is the TDSNull sentinel string (the peer rule spells
-     * it bare on the expected side). */
-    private static @com.legend.base.Nullable TypedSpec cellLiteral(String cell, Type kind, boolean gridCell) {
-        if (gridCell && (cell.isEmpty() || cell.equals("TDSNull") || cell.equals("null"))) {
-            return new com.legend.compiler.spec.typed.TypedCString("TDSNull", scalar(Type.Primitive.STRING));
-        }
-        if (kind instanceof Type.EnumType et) {
-            return new com.legend.compiler.spec.typed.TypedEnumValue(et.fqn(), cell, scalar(kind));
-        }
-        try {
-            if (kind == Type.Primitive.STRING) {
-                return new com.legend.compiler.spec.typed.TypedCString(cell, scalar(kind));
-            }
-            if (kind == Type.Primitive.INTEGER) {
-                return new com.legend.compiler.spec.typed.TypedCInteger(Long.parseLong(cell), scalar(kind));
-            }
-            if (kind == Type.Primitive.FLOAT || kind == Type.Primitive.NUMBER) {
-                return new com.legend.compiler.spec.typed.TypedCFloat(Double.parseDouble(cell),
-                        new java.math.BigDecimal(cell), scalar(Type.Primitive.FLOAT));
-            }
-            if (kind == Type.Primitive.DECIMAL || kind instanceof Type.PrecisionDecimal) {
-                String d = cell.endsWith("D") || cell.endsWith("d")
-                        ? cell.substring(0, cell.length() - 1) : cell;
-                return new com.legend.compiler.spec.typed.TypedCDecimal(new java.math.BigDecimal(d),
-                        scalar(Type.Primitive.DECIMAL));
-            }
-            if (kind == Type.Primitive.BOOLEAN) {
-                if (!cell.equals("true") && !cell.equals("false")) {
-                    return null;
-                }
-                return new com.legend.compiler.spec.typed.TypedCBoolean(Boolean.parseBoolean(cell), scalar(kind));
-            }
-            if (kind == Type.Primitive.DATE || kind == Type.Primitive.STRICT_DATE
-                    || kind == Type.Primitive.DATE_TIME) {
-                String d = cell.startsWith("%") ? cell.substring(1) : cell;
-                return new com.legend.compiler.spec.typed.TypedCDate(
-                        com.legend.values.PureDateLiteral.parse(d.replace(' ', 'T')), scalar(kind));
-            }
-        } catch (NumberFormatException | java.time.DateTimeException e) {
-            return null;
-        }
-        return null;
-    }
-
-    /** A flat join's elements as a literal collection, typed as the Typer
-     * types {@code [a, b, c]}: one element kind, or Any for a mix. */
-    private static TypedSpec collectionOf(List<TypedSpec> elements) {
-        Type kind = null;
-        boolean mixed = false;
-        for (TypedSpec e : elements) {
-            Type t = e.info().type();
-            if (kind == null) {
-                kind = t;
-            } else if (!kind.equals(t)) {
-                mixed = true;
-            }
-        }
-        Type element = kind == null || mixed ? new Type.ClassType(PlatformTypes.ANY) : kind;
-        return new com.legend.compiler.spec.typed.TypedCollection(elements,
-                new ExprType(element, new Multiplicity.Bounded(elements.size(), elements.size())));
     }
 
     /** RFC4180 cells: a quoted cell may hold the separator and doubled quotes. */
@@ -1270,18 +799,4 @@ public final class VerdictQueries {
         return out;
     }
 
-    /** The {@code #TDS} header: three-space indent, names quoted unless simple. */
-    private static List<String> tdsHeader(String line) {
-        List<String> out = new ArrayList<>();
-        for (String n : stripIndent(line).split(",", -1)) {
-            String t = n.strip();
-            out.add(t.length() >= 2 && t.startsWith("'") && t.endsWith("'")
-                    ? t.substring(1, t.length() - 1) : t);
-        }
-        return out;
-    }
-
-    private static String stripIndent(String line) {
-        return line.startsWith("   ") ? line.substring(3) : line;
-    }
 }

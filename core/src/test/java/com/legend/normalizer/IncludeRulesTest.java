@@ -98,7 +98,10 @@ class IncludeRulesTest {
                 Mapping w::AB ( include w::A include w::B )
                 """;
         ModelException e = assertThrows(ModelException.class, () -> Compiler.compileModel(dupId));
-        assertTrue(e.getMessage().contains("Duplicated class mappings found with ID"), e.getMessage());
+        // the product's kind and lite's sentence (J10, 2026-11-17); legend-engine's words are the edge's
+        assertEquals(com.legend.error.CompileKind.DUPLICATE_CLASS_MAPPING_IDS, e.kind(), e.getMessage());
+        assertTrue(e.getMessage().contains("Duplicated class mappings found with ID 'p' in mapping 'w::AB'"),
+                e.getMessage());
         Compiler.BuiltModule module = Compiler.buildModule(Compiler.parseSources(List.of(
                 new Compiler.ModelSource("m.pure", dupId))).model());
         assertTrue(module.walls().containsKey("w::AB"), module.walls().toString());
@@ -110,7 +113,8 @@ class IncludeRulesTest {
                 Mapping w::AA ( include w::A include w::A )
                 """;
         ModelException e2 = assertThrows(ModelException.class, () -> Compiler.compileModel(dupInclude));
-        assertTrue(e2.getMessage().contains("Duplicated mapping include"), e2.getMessage());
+        assertEquals(com.legend.error.CompileKind.DUPLICATE_MAPPING_INCLUDE, e2.kind(), e2.getMessage());
+        assertTrue(e2.getMessage().contains("Duplicated mapping include 'w::A' in mapping 'w::AA'"), e2.getMessage());
     }
 
     @Test

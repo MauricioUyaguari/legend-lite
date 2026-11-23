@@ -68,7 +68,7 @@ class ChannelBRelationTest {
         // ANOTHER LANE (2026-10-11, the user's ask): channel B on a database other than DuckDB is judged against that
         // lane's own channel A ledger and engine manifest, by its own measured numbers (ChannelBLane); the pins below
         // are the reference lane's
-        if (!ChannelBLane.isReference()) {
+        if (!ChannelBLane.isReference() || ChannelB.lite()) {
             ChannelBLane.judge("Relation", "chB-Relation", out);
             return;
         }
@@ -178,5 +178,6 @@ class ChannelBRelationTest {
         // ledger only with a dated reason (ChannelBLedger)
         ChannelBLedger.judge("Relation", out, ChannelBLedger.of(
                 org.finos.legend.lite.pct.extension.PctBackend.name(), "Relation"));
+        ChannelBLane.judgeSqlHeld("Relation");
     }
 }

@@ -35,10 +35,8 @@ class ObservabilityGuardrailTest {
     private static final Set<String> ENV_FLAGS = Set.of(
             "LEGEND_LITE_CARRY_TRACE", "LEGEND_LITE_CMP_DEBUG",
             "LEGEND_LITE_DUMP_SQL", "LEGEND_LITE_NAVDATE_TRACE",
-            // the lean ladder's prepare/execute timing trace (2026-09-20): one
-            // line per prepared statement to the named file — the input to
-            // "is prepare time linear in text / operators"; off by default
-            "LEGEND_LITE_PREP_TRACE",
+            // LEGEND_LITE_PREP_TRACE left the list 2026-11-15: its trace (diagnostics.PrepTrace, a file the verdict
+            // batch appended to) is deleted -- the planner writes no file (PR1's review, ArchitectureTest's rule)
             // LEGEND_LITE_RAW_EXPAND_TRACE left the list 2026-10-09: the trace it switched (Overloads
             // .rawSchemaErasedExpansion) is deleted (the ledger's PARK-13, build rebuild Phase 3b)
             "LEGEND_LITE_SPLIT_TRACE",
@@ -68,6 +66,9 @@ class ObservabilityGuardrailTest {
             "LEGEND_LITE_BIND", "LEGEND_LITE_ALLOWED_ORIGINS",
             // 2026-11-10, the A checkpoint's tenets audit (11) and the user's ruling that day: the folders the server
             // reads file: sources from, its startup setting beside --sources DIR; deployment config, not a debug flag
+            // LEGEND_LITE_PURE_MEANING (2026-11-19, A3 piece 3) left this list 2026-11-20: the user's ruling ~07:55,
+            // "Delete the settings, make engine only mode for engine for everything" (claude/compat-program 25ede64f
+            // §1): legend-engine's door answers legend-engine's meaning with no setting
             "LEGEND_LITE_SOURCE_DIRS");
 
     // 40 compiler sites + 3 server-shell sites that moved in with the

@@ -18,10 +18,15 @@ JARS = {
     # docs/SESSION_HANDOFF_2026_09_02.md). Bumped to 1.5.6.0 on the user's ask (the result boundary program, D60): the
     # LIMIT shapes answer correctly there (probes/duckdb_1_5_6.txt), and ASOF LEFT JOIN keeps its left rows against a
     # derived table the planner proves empty, where 1.4.4 dropped them (register S126); the whole chain measured.
+    # tools/engine-runner added 2026-11-19 (CP-9 of docs/records/compat-program-plan-2026-11-19.md, RULED by the user
+    # ~10:45 UTC: "yes to 1-5", item 4, the per-push checks and the oracle's entry): the legend-engine oracle's
+    # batteries read the DuckDB file legend-engine seeded (its own 1.3.0) with lite's 1.5.6, and seed lite's own file
+    # from the same statements, so both sides answer from the same rows (H7). Test tooling only: every target there is
+    # testonly.
     "duckdb_jdbc": struct(
         coordinate = "org.duckdb:duckdb_jdbc:1.5.6.0",
         sha256 = "04ae3375d7c40dc88dc9bf0014b82ba5e66715564584af4e3abea39c7ba144d3",
-        users = ["core", "spec"],
+        users = ["core", "spec", "tools/engine-runner"],
     ),
     # THE WAREHOUSE's DuckDB (docs/WAREHOUSE_W1_DESIGN_2026_09_26.md): 1.5.x for chunked fetching and host functions.
     # The warehouse loads its native library through FFM (//warehouse:duckdb_library extracts it). It moves ahead of
@@ -83,7 +88,9 @@ JARS = {
     "bigquery_jdbc": struct(
         coordinate = "com.google.cloud:google-cloud-bigquery-jdbc:1.6.0:all",
         sha256 = "b9d3368ae2d48721a053734745b2ef4d1cdf62f7e704e4d8a41b2a7126ca80a6",
-        users = ["pct"],
+        # core (2026-11-15, PR #104's fix round, the orchestrator's request): the manual //core:product_raise_probe,
+        # the product's raise text measured on a real BigQuery account
+        users = ["core", "pct"],
     ),
     # THE MARIADB PCT LANES' driver (docs/CLOUD_BACKENDS_PCT_2026_10_11.md §13): MariaDB Connector/J, which also
     # speaks to MySQL servers. Test-only; one jar, every POM dependency optional or provided. LGPL-2.1-or-later (a
@@ -119,8 +126,12 @@ JARS = {
         users = ["core", "pct"],
     ),
     "sqlite_jdbc": struct(
-        coordinate = "org.xerial:sqlite-jdbc:3.47.1.0",
-        sha256 = "4164d95347aeab42b754cabb7945b93e54f29ddb2eded967dbe979b4045cb685",
+        # 3.53.1.0 (SQLite 3.53.1), 2026-11-16: 3.47.1.0's SQLite read '1.0e-300' one ulp off (9.999999999999999e-301), so
+        # a Float carried as its 17-digit text did not come back exact (the product raise probe's carrier case); SQLite
+        # 3.53.1 reads it exactly (measured). The natives are 3.47's but the four Linux-Android ones. The orchestrator's
+        # decision (a), Phase 8. Checked against Maven Central's download on 2026-11-16.
+        coordinate = "org.xerial:sqlite-jdbc:3.53.1.0",
+        sha256 = "28aceecfcc9535645bd19fa988385703c7b89982c1506a6855f5942b4032eca6",
         users = ["core"],
     ),
     # MongoDB's Java driver (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D12): the MongoDB connector's client

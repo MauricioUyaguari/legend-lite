@@ -15,6 +15,11 @@ import java.util.List;
  */
 public interface Edge {
 
+    /** Whether this hook records the referee's ledger, so the test door plans its records at each effect and seed step
+     *  and the runner tells it each such step ran (census C1, the orchestrator's ruling of 2026-11-17: the hook decides,
+     *  never a null): the edge's own recorders do; the product's {@link NoEdge#NONE} does not, and refuses the rest. */
+    boolean records();
+
     /** An effect step's statements' ledger texts, in order, each with whether it is a query: the records to plan at the
      *  step. */
     List<Extension> effect(List<String> texts, List<Boolean> queries);
@@ -31,4 +36,7 @@ public interface Edge {
 
     /** An effect step ran, {@code planned} the records planned at it. */
     void effectRan(List<Extension> planned);
+
+    // (siteWords, legend-pure's words of a statement's raise sites planned as the edge's records (K10): deleted
+    // 2026-11-20 with stage B's B1 -- the edge words a raise after the run, from its site's record)
 }

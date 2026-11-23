@@ -99,7 +99,6 @@ public abstract class SqlRewriter {
             case SqlSource.Table t -> t;
             case SqlSource.Cte c -> c;
             case SqlSource.SourceUrl u -> u;
-            case SqlSource.VarSetPlaceholder vp -> vp;
             case SqlSource.RawSql r -> r;   // carried text: a leaf
             // a raw grid's report: its grid is a lowered query, rewritten as any subselect is (the seam program's
             // S3c audit, 2026-10-31: until then a leaf, which no dialect pass saw inside)
@@ -162,7 +161,6 @@ public abstract class SqlRewriter {
                 yield c == r.column() ? r : new SqlExpr.StoredRead(asColumn(c), r.stored());
             }
             case SqlExpr.RowOrder r -> r;
-            case SqlExpr.TempTableInSplice t -> t;
             case SqlExpr.Membership m -> {
                 SqlExpr n2 = rewriteExpr(m.needle());
                 SqlExpr c2 = rewriteExpr(m.collection());
@@ -235,7 +233,7 @@ public abstract class SqlRewriter {
                 SqlExpr ot = cs.otherwise() == null ? null
                         : rewriteExpr(cs.otherwise());
                 yield ws == cs.whens() && ot == cs.otherwise() ? cs
-                        : new SqlExpr.Case(ws, ot);
+                        : new SqlExpr.Case(ws, ot, cs.reason());
             }
             case SqlExpr.Exists ex -> {
                 SqlQuery sub = rewrite(ex.subquery());
@@ -274,12 +272,22 @@ public abstract class SqlRewriter {
             // and the CheckedOne original had the same latent hole.
             case SqlExpr.CheckedOne co -> {
                 SqlExpr in = rewriteExpr(co.list());
-                yield in == co.list() ? co : new SqlExpr.CheckedOne(in,
-                        co.scalarCarrier(), co.atLeastOnly());
+                yield in == co.list() ? co : co.withList(in);
             }
             case SqlExpr.CompactList cl -> {
                 SqlExpr in = rewriteExpr(cl.list());
                 yield in == cl.list() ? cl : new SqlExpr.CompactList(in);
+            }
+            case SqlExpr.RaiseText r -> {
+                java.util.List<SqlExpr> cs = new java.util.ArrayList<>();
+                boolean same = true;
+                for (SqlExpr c : r.operands()) {
+                    SqlExpr x = rewriteExpr(c);
+                    same &= x == c;
+                    cs.add(x);
+                }
+                // its words as data kept (2026-11-15: until then a rewritten operand dropped them)
+                yield same ? r : new SqlExpr.RaiseText(r.kind(), cs, r.asData());
             }
             case SqlExpr.Tagged t -> {
                 java.util.List<SqlExpr> cs = new java.util.ArrayList<>();
@@ -305,12 +313,6 @@ public abstract class SqlRewriter {
                 SqlQuery sub = rewrite(sq.subquery());
                 yield sub == sq.subquery() ? sq
                         : new SqlExpr.ScalarSubquery(sub);
-            }
-            case SqlExpr.DeferredTdsString d -> {
-                SqlQuery sub = rewrite(d.inner());
-                yield sub == d.inner() ? d
-                        : new SqlExpr.DeferredTdsString((SqlSelect) sub,
-                                d.alias(), d.id(), d.form(), d.renderTdsNull());
             }
             case SqlExpr.JsonObject j -> {
                 List<SqlExpr> kv = mapList(j.kv(), this::rewriteExpr);
@@ -355,7 +357,7 @@ public abstract class SqlRewriter {
             case SqlExpr.Cast c -> {
                 SqlExpr v = rewriteExpr(c.value());
                 yield v == c.value() ? c
-                        : new SqlExpr.Cast(v, c.target(), c.conform());
+                        : new SqlExpr.Cast(v, c.target(), c.reason());
             }
             case SqlExpr.FoldCall f -> {
                 SqlExpr src = rewriteExpr(f.source());

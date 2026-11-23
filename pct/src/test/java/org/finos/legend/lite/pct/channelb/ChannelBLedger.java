@@ -58,7 +58,12 @@ final class ChannelBLedger {
         return List.copyOf(out);
     }
 
-    /** {@code out} judged against {@code ledger}: throws naming every difference. */
+    /** The head of a run's outcome where its two judges disagreed: the runner writes the exception's simple name
+     *  ({@code testexec.IsolatedRun.JudgesDisagree}, package-private there) before its words. */
+    static final String DISAGREEMENT = "JudgesDisagree: ";
+
+    /** {@code out} judged against {@code ledger}: throws naming every difference -- a judge disagreement first, which
+     *  no row may ledger. */
     static void judge(String suite, List<ChannelB.Outcome> out, List<Expected> ledger) {
         Map<String, Expected> byTest = new LinkedHashMap<>();
         for (Expected e : ledger) {
@@ -71,13 +76,21 @@ final class ChannelBLedger {
         for (ChannelB.Outcome o : out) {
             seen.put(o.testFqn(), o);
             Expected e = byTest.get(o.testFqn());
+            if (o.status() != ChannelB.Status.PASS && o.full().startsWith(DISAGREEMENT)) {
+                // a judge disagreement is a defect, never a row (G2; the compatibility owner, 2026-11-19): refused by
+                // name whatever row it would match -- its text quotes the database's run, so a row naming the
+                // database's error matched it, and the LITE lane passed four rows while its judges disagreed
+                wrong.add("THE JUDGES DISAGREE (a defect, never a row): " + o.testFqn() + " :: " + o.detail());
+                continue;
+            }
             if (o.status() == ChannelB.Status.PASS) {
                 if (e != null) {
                     wrong.add("PASSES, ledgered as failing (remove it from the ledger): " + o.testFqn());
                 }
             } else if (e == null) {
                 wrong.add("FAILS, not ledgered: " + o.testFqn() + " :: " + o.status() + " " + o.detail());
-            } else if (!o.detail().contains(e.contains())) {
+            } else if (!o.full().contains(e.contains())) {
+                // matched in the FULL text: the display's clipped middle never decides a match (2026-11-15)
                 wrong.add("FAILS DIFFERENTLY: " + o.testFqn() + " :: " + o.detail() + " -- the ledger expects it to"
                         + " contain: " + e.contains());
             }

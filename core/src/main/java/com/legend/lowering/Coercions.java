@@ -46,7 +46,7 @@ final class Coercions {
         // SYNTHESIZED conformance population spells trustOne (below)
         // and stays unguarded BY NAME — the C2 provenance split.
         for (com.legend.model.FunctionId f : Pure.AT_MULTIPLICITY_TO_ONE) {
-            rules.put(f, (n, args) -> {
+            rules.put(f, (Scalars.StyledRule) (n, args, styled) -> {
                 // AGG-STRIP (stamp C2): a LIST-collecting subquery
                 // operand becomes the NATIVE scalar subquery — SQL's
                 // own checked toOne (row-lane flow convention,
@@ -62,9 +62,8 @@ final class Coercions {
                         .multiplicity().requireBounded("toOne operand");
                 // STATICALLY empty ([] literal): pure raises — size 0
                 if (m.upper() != null && m.upper() == 0) {
-                    return SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.StringLit(
-                            "Cannot cast a collection of size 0 to"
-                            + " multiplicity [1]"));
+                    return SqlExpr.Call.of(SqlFn.ERROR, SqlExpr.RaiseText.placed(
+                            com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, "[1]"));
                 }
                 // VALUE-LANE collections raise pure's size error in the
                 // database. Lane from the TYPED OPERAND (CollectionLanes
@@ -74,7 +73,8 @@ final class Coercions {
                         && !CollectionLanes.scalarCarriedIf(
                                 n.args().get(0))) {
                     return new SqlExpr.CheckedOne(
-                            new SqlExpr.CompactList(args.get(0)));
+                            new SqlExpr.CompactList(args.get(0)), false, false,
+                            Scalars.exactSize(n.args().get(0)));
                 }
                 // a LIST-producing call over the relation lane (a raw grid's
                 // rows.values — getH2Versions): the SQL value IS a list, so
@@ -82,7 +82,8 @@ final class Coercions {
                 if (m.isMany() && args.get(0) instanceof SqlExpr.Call lc
                         && lc.fn().producesList()) {
                     return new SqlExpr.CheckedOne(
-                            new SqlExpr.CompactList(args.get(0)));
+                            new SqlExpr.CompactList(args.get(0)), false, false,
+                            Scalars.exactSize(n.args().get(0)));
                 }
                 // VALUE-LANE [0..1] (user ruling 2026-08-26, "if not
                 // relational, follow the type system literally"): a
@@ -101,10 +102,8 @@ final class Coercions {
                     return Scalars.guarded(
                             new SqlExpr.Call(SqlFn.IS_NULL,
                                     List.of(args.get(0))),
-                            new SqlExpr.StringLit("Cannot cast a"
-                                    + " collection of size 0 to"
-                                    + " multiplicity [1]"),
-                            args.get(0));
+                            SqlExpr.RaiseText.placed(com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, "[1]"),
+                            args.get(0), styled);
                 }
                 // Everything else — ROW-LANE [0..1] scalar reads AND
                 // many-stamped ROW-LANE collections (correlated
@@ -124,6 +123,34 @@ final class Coercions {
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_TRUST_ONE) {
             rules.put(f, (n, args) -> args.get(0));
         }
+        // cellText -- a TDS cell's text (Lite.CELL_TEXT): the product's empty where the cell is, the edge's TDSNull
+        // (phase D's D1.3, 2026-11-15)
+        // typeRaise -- a run-time type check's failure (Lite.TYPE_RAISE, W5 of docs/records/d-plan-2026-11-16.md): the
+        // product's raise of the kind its first argument names, the two types its operands; typed as the position it
+        // stands in, as fail's is
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_TYPE_RAISE) {
+            rules.put(f, (n, args) -> {
+                if (!(args.get(0) instanceof com.legend.sql.SqlExpr.StringLit kind)
+                        || !(args.get(1) instanceof com.legend.sql.SqlExpr.StringLit from)
+                        || !(args.get(2) instanceof com.legend.sql.SqlExpr.StringLit to)) {
+                    throw new IllegalStateException("typeRaise's arguments are the resolver's literals: " + args);
+                }
+                com.legend.sql.RaiseKind k = com.legend.sql.RaiseKind.valueOf(kind.value());
+                // its operands: the two types, or a match's value's type alone
+                com.legend.sql.SqlExpr raised = PureSql.raise(new com.legend.sql.SqlExpr.RaiseText(k,
+                        List.of(from, to), null), n.pos());
+                return n.info().type() instanceof com.legend.compiler.element.type.Type.Primitive p && p != com.legend.compiler.element.type.Type.Primitive.BOOLEAN
+                        ? new com.legend.sql.SqlExpr.Cast(raised, PureSql.type(p), com.legend.sql.SqlExpr.Reason.RAISE)
+                        : raised;
+            });
+        }
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_ASSERT_FAILED_TEXT) {
+            rules.put(f, (Scalars.StyledRule) (n, args, styled) -> new com.legend.sql.SqlExpr.StringLit(
+                    styled.forms().assertFailed()));
+        }
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_CELL_TEXT) {
+            rules.put(f, (n, args) -> com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.CELL_TEXT, args.get(0)));
+        }
         // toOneMany narrows [*] to [1..*]: at-least-one is CHECKED
         // (audit slice 3 — it was an unconditional no-op). A to-one
         // operand additionally re-carriers to the LIST the [1..*]
@@ -133,9 +160,8 @@ final class Coercions {
                 Multiplicity.Bounded m = n.args().get(0).info()
                         .multiplicity().requireBounded("toOneMany operand");
                 if (m.upper() != null && m.upper() == 0) {
-                    return SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.StringLit(
-                            "Cannot cast a collection of size 0 to"
-                            + " multiplicity [1..*]"));
+                    return SqlExpr.Call.of(SqlFn.ERROR, SqlExpr.RaiseText.placed(
+                            com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, "[1..*]"));
                 }
                 // TYPED-operand lane — exactly as toOne above
                 if (m.isMany() && CollectionLanes.valueLane(n.args().get(0))
@@ -143,7 +169,7 @@ final class Coercions {
                                 n.args().get(0))) {
                     return new SqlExpr.CheckedOne(
                             new SqlExpr.CompactList(args.get(0)), false,
-                            true /* at least one */);
+                            true /* at least one */, Scalars.exactSize(n.args().get(0)));
                 }
                 if (m.isMany()) {
                     return args.get(0);   // row-lane collection: flow

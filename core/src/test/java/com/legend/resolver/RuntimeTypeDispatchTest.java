@@ -77,6 +77,14 @@ class RuntimeTypeDispatchTest {
         conn.close();
     }
 
+    /** The kind of the site {@code e} raised, read through {@code statement}'s sites as exec reads it. */
+    private static com.legend.sql.RaiseKind raisedKind(SQLException e,
+            com.legend.sql.dialect.RenderedStatement statement) {
+        var raised = (com.legend.exec.RaisedErrors.Raised) com.legend.exec.RaisedErrors.unwrapped(e,
+                com.legend.planner.PlanMaker.sites(statement.sites()));
+        return raised.kind();
+    }
+
     private static String sqlOf(String query) {
         return ResolvedSql.of(MODEL, query);
     }
@@ -125,10 +133,12 @@ class RuntimeTypeDispatchTest {
     @Test
     @DisplayName("match: no arm accepts the row's run-time type — raises like pure")
     void matchNoArmRaises() {
-        String sql = sqlOf("|rt::Vehicle.all()->project([v|$v->match(["
+        var statement = ResolvedSql.statement(MODEL, "|rt::Vehicle.all()->project([v|$v->match(["
                 + "c:rt::Car[1]|$c.engineType])], ['e'])" + FROM);
-        SQLException e = assertThrows(SQLException.class, () -> exec(sql));
-        assertTrue(e.getMessage().contains("Match failure"), e.getMessage());
+        SQLException e = assertThrows(SQLException.class, () -> exec(statement.sql()));
+        // the product's raise is its kind (W7, 2026-11-16), read through the statement's sites as exec reads it (phase
+        // D's Phase 2: the database raises the site's token); legend-pure's "Match failure" sentence is the edge's
+        assertEquals(com.legend.sql.RaiseKind.MATCH_FAILURE, raisedKind(e, statement));
     }
 
     @Test
@@ -163,8 +173,23 @@ class RuntimeTypeDispatchTest {
         String sql = sqlOf("|rt::Vehicle.all()"
                 + "->project([v|$v->cast(@rt::Car).engineType], ['e'])" + FROM);
         SQLException e = assertThrows(SQLException.class, () -> exec(sql));
-        assertTrue(e.getMessage().contains("cannot be cast to rt::Car"),
-                e.getMessage());
+        // the product's raise: its kind and where (W5 of docs/records/d-plan-2026-11-16.md); legend-pure's "Cast
+        // exception: ... cannot be cast to ..." is the edge's (edge.PureMessages)
+        // (phase D's Phase 2, 2026-11-16: the database raises the site's bare token; its kind and where are the plan's)
+        assertTrue(e.getMessage().contains(com.legend.sql.RaiseKind.TOKEN), e.getMessage());
+    }
+
+    /** A Bicycle row cast to Car: legend-pure prints the ROW's class ("Bicycle cannot be cast to Car", Cast.java's
+     *  value's generic type), which only the database knows here -- Vehicle has subclasses -- so lite prints it
+     *  {@code <computed>} (S389), never the static "Vehicle" (the BE audit 5's M1, 2026-11-21). */
+    @Test
+    void aFailedCastNamesTheRowsClassComputed_neverTheStaticOne() {
+        var statement = ResolvedSql.statement(MODEL, "|rt::Vehicle.all()"
+                + "->project([v|$v->cast(@rt::Car).engineType], ['e'])" + FROM);
+        List<String> words = statement.sites().stream().map(site -> com.legend.result.RaiseWords.sentence(
+                new com.legend.executionplan.ExecutionPlan.Site(1, site.kind(),
+                        site.operands().stream().map(com.legend.executionplan.Operand::of).toList()))).toList();
+        assertTrue(words.contains("Cast exception: <computed> cannot be cast to Car"), words.toString());
     }
 
     @Test

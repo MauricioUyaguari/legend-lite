@@ -9,7 +9,7 @@ import com.legend.model.FunctionDefinition;
 import com.legend.model.NativeFunctionDefinition;
 import com.legend.model.PackageableElement;
 import com.legend.model.SignatureMangle;
-import com.legend.parser.Dialect;
+import com.legend.parser.GrammarLevel;
 import com.legend.door.ModelFromText;
 import org.junit.jupiter.api.Test;
 
@@ -82,7 +82,7 @@ class CatalogUpstreamDiffTest {
                 List<PackageableElement> elements;
                 try {
                     elements = ModelFromText.parse(Files.readString(f, StandardCharsets.UTF_8),
-                            Dialect.LEGEND_PLATFORM).elements();
+                            GrammarLevel.LEGEND_PLATFORM).elements();
                 } catch (RuntimeException e) {
                     unreadable.add(root.relativize(f) + "\t" + SpecBodyCensusTest.first(e.getMessage()));
                     continue;
@@ -226,8 +226,27 @@ class CatalogUpstreamDiffTest {
      *  overload, a row's values in several columns as one list without its empty cells, so the timeseries library's
      *  someValued is one function where it was twelve overloads (an answer's 12-column cap); upstream's ColSpecArray is
      *  names alone and no function of either pinned tree takes a row and one (checked per name 2026-11-02), and a list
-     *  literal of [0..1] elements, [$r.a, $r.b], is refused there. */
-    private static final int NOT_UPSTREAM_MAX = 70;
+     *  literal of [0..1] elements, [$r.a, $r.b], is refused there. 72 on 2026-11-16 (the first full CI on D's stage, the
+     *  user's word: "You can bump up the number for the 2 new functions now that we know they are needed"): two
+     *  lite-INTERNAL natives (Pure.INTERNAL_DESUGAR), meta::legend::lite::cellText (D1.3: a TDS cell's text, absent where
+     *  the cell is empty; permanent: the in-query join skips it, S316) and meta::legend::lite::typeRaise (W5: the
+     *  resolver's run-time type dispatch raising its kind; permanent: Pure has no typed raise). 73 on 2026-11-18 (PR
+     *  #118 fix round: N2, the in-body assert's default message chosen by the plan's style at lowering; the user's word
+     *  "Okay", the same function the user's "raise it" let into Pure.INTERNAL_DESUGAR): meta::legend::lite::
+     *  assertFailedText, lite-INTERNAL -- the product's sentence, the compatibility edge's legend-pure "Assert failed". */
+    // 73 -> 76 (2026-11-19, A3 of the compatibility program, piece 1; the user's word in the translator session, "Yes to
+    // phases 1 guard move", and in the compat owner's session, "Okay approved", ~20:50): meta::legend::lite::sqlSubstring
+    // (2 overloads) and sqlPosition (1), SQL's SUBSTRING and POSITION by name for the islands and the ###Relational
+    // dynaFunctions -- upstream declares neither
+    // 76 -> 78 (2026-11-19, A3, the user's word ~22:20 "Yes to all three" to the guard moves for the engine opt-in,
+    // relayed by the compat owner): meta::legend::lite::substringAsGiven's two overloads, lite-INTERNAL and the
+    // compiler's own -- the database's own SUBSTRING over the arguments as given, which the legend-engine door's engine
+    // rewrite alone writes; upstream declares no such function
+    // 78 -> 80 (2026-11-20, A3, the user's word ~07:45 "Okay 1", relayed by the compat owner): meta::legend::lite::
+    // substrAsGiven's two overloads, lite-INTERNAL and the compiler's own -- the database's own SUBSTRING over Pure's
+    // indexes corrected as legend-engine's processSubstr corrects them, which the legend-engine door's engine rewrite
+    // alone writes, for substr and the corrected substring; upstream declares no such function
+    private static final int NOT_UPSTREAM_MAX = 80;
     private static final int MISSING_MAX = 191;
     private static final int UNREADABLE_MAX = 16;
 

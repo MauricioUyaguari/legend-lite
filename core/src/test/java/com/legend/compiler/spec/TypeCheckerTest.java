@@ -716,9 +716,26 @@ class TypeCheckerTest {
         // (census batch 150); the lowering emits fail()
         TypedSpec n = typeQuery("5->match([s:String[1]|$s])");
         assertEquals(Type.Primitive.STRING, n.info().type());
+        // the raise is a kind since W7 (2026-11-16): MATCH_FAILURE through typeRaise, its sentence the edge's
         assertTrue(n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                && nc.callee().qualifiedName().equals("meta::pure::functions::asserts::fail"),
-                "a no-branch match is the fail() raise, got " + n.getClass().getSimpleName());
+                && nc.callee().qualifiedName().equals(com.legend.builtin.Pure.Lite.TYPE_RAISE),
+                "a no-branch match is the typeRaise raise, got " + n.getClass().getSimpleName());
+        // its operand legend-pure's print of the value no branch takes (CompiledSupport.matchFailure; match.pure's
+        // testMatch*Fail: "Match failure: 42 ... instanceOf Integer"; the BE audit 3's M4, 2026-11-21)
+        assertEquals("5 instanceOf Integer", raisedValue(n));
+        assertEquals("[test string instanceOf String, test string 2 instanceOf String]",
+                raisedValue(typeQuery("['test string', 'test string 2']->match([i:Integer[1]|$i])")));
+        assertEquals("42.01 instanceOf Float", raisedValue(typeQuery("42.01->match([i:Integer[1]|$i])")));
+        // one value bare, never bracketed: interpreted Match prints values.getFirst() where there is one, and compiled
+        // Pure holds [42] as 42 (the BE audit 5's L3, 2026-11-21)
+        assertEquals("one instanceOf String",
+                raisedValue(typeQuery("['one']->match([i:Integer[1]|$i])")));
+    }
+
+    /** A typeRaise's value operand, its second argument. */
+    private static String raisedValue(TypedSpec n) {
+        var nc = assertInstanceOf(com.legend.compiler.spec.typed.TypedNativeCall.class, n);
+        return assertInstanceOf(com.legend.compiler.spec.typed.TypedCString.class, nc.args().get(1)).value();
     }
 
     @Test

@@ -10,8 +10,7 @@ import com.legend.edge.EffectTexts;
 import com.legend.edge.RefereeLoad;
 import com.legend.executionplan.DatabaseType;
 import com.legend.executionplan.ExecutionPlan;
-import com.legend.testexecutionplan.Agreement;
-import com.legend.testexecutionplan.Appeal;
+import com.legend.edge.Appeal;
 import com.legend.testexecutionplan.Assertion;
 import com.legend.testexecutionplan.Extension;
 import com.legend.testexecutionplan.Failure;
@@ -39,7 +38,20 @@ import org.junit.jupiter.api.Test;
 class TestPlanJsonRoundTripTest {
 
     private static final ExecutionPlan.Multiplicity ONE = new ExecutionPlan.Multiplicity(1, 1);
-    private static final Failure FAILURE = new Failure(Failure.Kind.ILLEGAL_STATE, "refused", null, null, null, "here");
+    private static final Failure FAILURE = new Failure(Failure.Kind.NOT_IMPLEMENTED, "refused", null, null, null);
+
+    /** A planned failure's record round-trips, and no message rides it (stage B's BE, 2026-11-21, the one error model):
+     *  a compile error inside two frames at a position, and a file's size against a load's limit. */
+    private static final Failure COMPILE_FAILURE = new Failure(Failure.Kind.MODEL, null,
+            com.legend.error.LegendCompileException.Phase.TYPE, null, null, new com.legend.error.ErrorRecord(
+                    com.legend.error.CompileKind.WINDOW_FRAME_INVERTED, List.of(), "[2:3]", List.of(
+                            new com.legend.error.ErrorRecord.Frame(com.legend.error.FrameKind.INLINED_VIA,
+                                    List.of("a", "b")),
+                            new com.legend.error.ErrorRecord.Frame(com.legend.error.FrameKind.IN_FUNCTION,
+                                    List.of("f")))));
+    private static final Failure FILE_FAILURE = new Failure(Failure.Kind.DATA, null, null, null, null,
+            com.legend.error.ErrorRecord.of(com.legend.error.ErrorKind.FILE_TOO_LARGE,
+                    List.of("/big.csv", "1048577", "1048577", "1")));
     private static final Assertion ASSERTION = new Assertion("assertEquals", "equality", true, null);
 
     @Test
@@ -63,23 +75,24 @@ class TestPlanJsonRoundTripTest {
             id++;
         }
         RootLoop roots = new RootLoop(List.of(
-                new RootLoop.Root("assertEquals", List.of(new RootLoop.Row("row", 1, null, FAILURE, 1, "foreign-dialect:DB2"),
-                        new RootLoop.Row("refused", RootLoop.NO_VERDICT, FAILURE, null, RootLoop.NO_APPEAL, null)),
-                        new RootLoop.Message(constant(), null, true)),
-                new RootLoop.Root("assert", List.of(new RootLoop.Decided(FAILURE, true)),
-                        new RootLoop.Message(null, FAILURE, false))),
+                // (a refused row and a refused message went 2026-11-21, stage B's BE: a dialect's refusal refuses the
+                // body at planning, D)
+                new RootLoop.Root("assertEquals", List.of(new RootLoop.Row("row", 1), new RootLoop.Row("second", 2)),
+                        new RootLoop.Message(constant(), true)),
+                new RootLoop.Root("assert", List.of(new RootLoop.Judged(), new RootLoop.Decided(FAILURE, true)),
+                        new RootLoop.Message(constant(), false))),
                 Map.of("fragment", "reason"));
-        TestPlan.Verdicts group = new TestPlan.Verdicts(verdicts, null, null,
-                TestPlan.JudgingRules.COMPILED_PURE_COMPAT, roots, new Agreement(1, 2));
+        TestPlan.Verdicts group = new TestPlan.Verdicts(verdicts, null, null, roots);
         TestPlan.Branch branch = new TestPlan.Branch(constant(), List.of(), List.of());
         Map<Integer, List<Extension>> byStep = new LinkedHashMap<>();
         byStep.put(0, List.of(new EffectTexts(List.of(new EffectTexts.Statement("insert", false),
                 new EffectTexts.Statement("select", true))), refereeLoad()));
         Map<Integer, List<Extension>> byVerdict = new LinkedHashMap<>();
-        byVerdict.put(1, List.of(rowsAppeal(), new Appeal(2, "contract", Appeal.Kind.CONTRACT, "words", null,
-                new Appeal.Batched("golden", null, false), 1)));
-        TestPlan plan = new TestPlan(List.of(), List.of(group, branch), TestPlan.Judge.AGREEMENT, byStep, byVerdict,
-                true, anyTarget(), new com.legend.testexecutionplan.BodyFacts(true, false, true, "FLAXEO"));
+        byVerdict.put(1, List.of(rowsAppeal(), new Appeal(2, "contract", Appeal.Kind.CONTRACT, "words",
+                null)));
+        TestPlan plan = new TestPlan(List.of(), List.of(group, branch), TestPlan.Judge.DATABASE, byStep,
+                byVerdict, true, anyTarget(), new com.legend.testexecutionplan.BodyFacts(true, false, true, "FLAXEO"),
+                TestPlan.LITE_WORDS);
 
         assertNull(TestPlanJson.roundTripDifference(plan));
     }
@@ -120,9 +133,13 @@ class TestPlanJsonRoundTripTest {
                 new HostJudgment.Json(true),
                 new HostJudgment.Rendered("rendered", false, "form", null, "aForm", true, true),
                 new HostJudgment.Raise(FAILURE),
-                new HostJudgment.EngineText("text", "golden", "ours", false, "decline", "origin", 1, true),
+                new HostJudgment.Raise(COMPILE_FAILURE),
+                new HostJudgment.Raise(FILE_FAILURE),
+                new HostJudgment.EdgeJudged(new com.legend.edge.EngineTextJudgment("text", "golden", "ours", false, "decline"), 1,
+                        "origin", true),
                 new HostJudgment.AssertError("expected", 3L, null, FAILURE, part),
-                new HostJudgment.Messaged(new HostJudgment.Size(true), 1, "unplanned"));
+                new HostJudgment.Messaged(new HostJudgment.Size(true), 1, "unplanned"),
+                new HostJudgment.Negated(new HostJudgment.Size(false), "NOT_SIZE"));
     }
 
     /** Any database's target: the round trip does not depend on which. */
@@ -139,7 +156,7 @@ class TestPlanJsonRoundTripTest {
                 new Appeal.InListSeed("String", List.of("a")),
                 anyTarget(),
                 new Appeal.Enums(List.of("my::E"), Map.of("my::E", Map.of("1", "A")), Map.of("kind", "my::E")));
-        return new Appeal(1, "rows", Appeal.Kind.ROWS, null, rows, null, RootLoop.NO_APPEAL);
+        return new Appeal(1, "rows", Appeal.Kind.ROWS, null, rows);
     }
 
     private static TestPlan.Side constant() {
@@ -156,7 +173,7 @@ class TestPlanJsonRoundTripTest {
      *  referee's own statements. */
     private static RefereeLoad refereeLoad() {
         com.legend.setup.LoadSteps rows = com.legend.setup.LoadSteps.blob(List.of("INSERT INTO T VALUES (1)"),
-                "the data of the table T");
+                "T");
         List<com.legend.executionplan.ExecutionPlan.LoadStep> steps = new java.util.ArrayList<>();
         steps.add(new com.legend.executionplan.ExecutionPlan.LoadStep.Statement("create table t"));
         steps.addAll(rows.steps());
@@ -164,7 +181,7 @@ class TestPlanJsonRoundTripTest {
                 com.legend.executionplan.DataRef.Namespace.RESOURCE, "people.csv", "0".repeat(64), 3,
                 com.legend.executionplan.DataRef.Csv.DEFAULT), new com.legend.executionplan.ExecutionPlan.LoadStep
                 .Delivery.Reads(List.of("SET @legend_csv = ?", "INSERT INTO T SELECT 1"), List.of(
-                "SET @legend_csv = NULL")), 500));
+                "SET @legend_csv = NULL"), List.of()), 500));
         return new RefereeLoad(steps, rows.content());
     }
 }
