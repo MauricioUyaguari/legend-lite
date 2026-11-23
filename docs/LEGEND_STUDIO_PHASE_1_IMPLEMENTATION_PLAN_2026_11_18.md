@@ -1,5 +1,10 @@
 # Phase 1 implementation plan: DataCube's `generatePlan` answered in the tab (2026-11-18)
 
+> **Parked (the user, 2026-11-23).** Legend Studio's text mode is the first use of legend-lite now, not DataCube:
+> [`LEGEND_STUDIO_TEXT_MODE_PLAN_2026_11_23.md`](LEGEND_STUDIO_TEXT_MODE_PLAN_2026_11_23.md). This document is kept as
+> written; its pull requests ([finos/legend-studio#5951](https://github.com/finos/legend-studio/pull/5951),
+> [neema2/legend-lite#120](https://github.com/neema2/legend-lite/pull/120)) are parked with it.
+
 **Status:** M0 to M2 are written, checked and in pull requests ([Progress](#progress)); M3, shadow mode, was
 written and then taken out of phase 1 (2026-11-23). M2 ran in the DataCube app against a real engine. M4's wider
 checks and M5 are not started. Four things changed after this plan was written, and the milestones below describe
