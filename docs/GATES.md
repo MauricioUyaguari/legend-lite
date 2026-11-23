@@ -19,12 +19,13 @@ PCT, the stress corpus, parser equivalence, Channel B, the native image's tests)
 | `product` (a `bazel build`, not a suite) | 2 | `//:java //:web //:wasm //:native //:sites //datacube:app`; then `bazel build --nobuild --config=bazel10 //...`; then A25; then the lane guard | the product compiles and nothing else (`//tools/guards:compile_only_test` holds the four compile targets to compiles and file plumbing); NullAway is a compile error; the jar pools are one version each by construction; everything still analyzes under Bazel 10's incompatible flags (G14, since 2026-10-04); every test of the repository is in some lane or in `heavy` (`bazel query 'tests(//...) except tests(//gates:lanes) except tests(//gates:heavy)'` is empty). Until 2026-10-07 this lane was `bazel build //...`, which also computed the six corpus passes and the 2 GB `//pct:ratchets` |
 | `core` | 1, 3 | `//core:core_tests`, `//core:duckdb_load_test`, `//core:section_grammar_registry_test`, `//core:corpus_differential_test`, `//core:planner_on_java_base_test`, `//core:postgres_arm_test`, `//spec:spec_tests`, `//json:tests`, `//pure-protocol:twins_test`, `//tools/engine-runner:smoke_test` | the compiler suite (NullAway runs on every compile); with `//core:corpus_differential_test`, legend-lite's SQL over the stress seed against the corpus oracle (wired 2026-10-05, P3-18); spec parity: generators, census, manifest; the JSON and protocol libraries; the engine-runner binaries through their launchers (P3-26); the server's Postgres arm, one query against the embedded Postgres 16 |
 | `checks` | — | `//:generated`, `//projects:tests`, `//tools/deps:all`, the five `//tools/guards:*_test` plus `workflows_test`, `//tools/junit:pins_test`, `//tools/junit:runner_test`, `//tools/java_run:pins_test`, `//tools/python:lock_matches_requirements`, `//tools/browser:revision_test`, `//tools/browser:proxy_args_test`, `//tools/bump:bump_test`, `//tools/js:lock_matches_package_json_test`, the five `//scripts/corpus:*_gate`, `//core:guardrails`, `//core:census`, `//pct:pct_discipline` | the guards (since 2026-10-04, Bazel workplan Phase 6): every file inventoried and in some package's `all_files`, every jar pool locked and strict, no Markdown test input, no classpath with one Maven coordinate at two versions; the build targets perform only compiles and file plumbing, and the guard's fixture tier proves it still catches a genrule, a java_run, one calling itself Javac, and a validation (since 2026-10-06); the workflows linted by the pinned actionlint (since 2026-10-07; it ran by `curl` before); Bump's rewrites against the real pins; every pnpm lock equal to its package.json; the pinned Chromium equal to every locked Playwright's revision (since 2026-10-04, P1-14); the proxy a test's environment names given to Chromium as its own flags (since 2026-10-25, the timeseries review's G6); the Python lock holding every pin of tools/python/requirements.in with hashes (offline; since 2026-10-04, P1-07); every committed generated file equal to its generator (`//:generated` holds each package's diff-test suite; a missing suite fails the build — since 2026-10-03, replacing a `bazel query` whose failure ran nothing); the model projects, each compiled alone with its declared closure, the graph, the contract (P3-23); the dependency guards; the corpus ratchets (P2-04); PCT's discipline guard (no comparison machinery in the module); the source checks |
-| `corpus_duckdb` | 4, 11 | `//spec:corpus_duckdb` | the relational corpus on DuckDB: the host judge (the build action `:judge_host_duckdb`) and the database judge (`:judge_database_duckdb`), joined per assert to the host pass's ledger (one lane since 2026-09-23; both passes cached build actions since 2026-10-05, Bazel workplan P3-01, P2-15); the lane, a suite, is its verdict and the diff tests of what it measures (spec/corpus.bzl) |
-| `corpus_h2` | 5 | `//spec:corpus_h2` | the relational corpus on H2, both judges and their per-assert join — :corpus_duckdb's shape (joined since 2026-09-23; `rcorpus/h2-database-untriaged-register.txt` lists what the first join found and has yet to be explained) |
+| `corpus_duckdb` | 4, 11 | `//spec:corpus_duckdb`, `//spec:update_edge_corpus_duckdb_tests` | the relational corpus on DuckDB: the host judge (the build action `:judge_host_duckdb`) and the database judge (`:judge_database_duckdb`), joined per assert to the host pass's ledger (one lane since 2026-09-23; both passes cached build actions since 2026-10-05, Bazel workplan P3-01, P2-15); the lane, a suite, is its verdict and the diff tests of what it measures (spec/corpus.bzl); and the edge golden net's DuckDB corpus ledgers (since 2026-11-19, slice 0.2), diffed beside the host pass they read |
+| `corpus_h2` | 5 | `//spec:corpus_h2`, `//spec:update_edge_corpus_h2_tests` | the relational corpus on H2, both judges and their per-assert join — :corpus_duckdb's shape (joined since 2026-09-23; `rcorpus/h2-database-untriaged-register.txt` lists what the first join found and has yet to be explained); and the edge golden net's H2 corpus ledgers (since 2026-11-19, slice 0.2) |
 | `pct_duckdb` | 6 | `//pct:pct_duckdb` | the five PCT suites on DuckDB, a suite of one target per PCT suite (`//pct:pct_duckdb_<suite>`, each judged on its own census traffic; Bazel workplan P3-09) |
 | `pct_h2` | 7 | `//pct:pct_h2` | PCT relation on H2 (2.4.240 until 2026-11-05, lite's one H2 2.5.252 since): 469 tests, H2's 26 expected failures (27 -> 26, 2026-10-02: the self-referencing exists) each pinned by message (`Test_LegendLite_H2_RelationFunctions_PCT`) |
 | `pct_postgres` | 7P | `//pct:pct_postgres` | PCT, all five suites, on Postgres 16.15 (one target per suite, `//pct:pct_postgres_<suite>`; P3-09) started by the test JVM from pinned binaries (`@embedded_postgres`, no Docker): 1,249 tests, Postgres's expected failures each pinned by message (`Test_LegendLite_Postgres_*Functions_PCT`), grouped as wrong answers, Postgres's own errors, leg P4's collections and Variant, and named refusals: 267 first measured, 242 after tier 1 (multi-column pivots, the self-referencing exists, half-even rounding to a scale, calendar buckets, whole-partition median/mode/quantile, maxBy/minBy, pow, ordered removeDuplicates), 230 after tier 2 (Variant over jsonb: key and index access, toVariant, parse, typed reads), 145 after tier 3 (lists of scalars as native arrays), 129 after tier 4 (structs and non-scalar lists as jsonb, held flat); its census divergence ceilings measured per suite (Essential 13, Grammar 5, the others 0; P3-09; 12 and 4 until 2026-10-11, when two more tests reached the wire with a struct as jsonb, the by-design class: `PctCensusGate.maxWireDiverge`) |
 | `pct_channel_b` | 9 | `//pct:pct_channel_b` | Channel B dual-verdict suites, one target per class (`//pct:pct_channel_b_<suite>`; P3-09) |
+| `edge_net` | — | `//pct:edge_net` | the edge golden net (the compatibility program's slice 0.2, CP-9 ruled by the user 2026-11-19: per-push compatibility checks): every edge recording -- PCT channels A and B on DuckDB, H2 and SQLite, pure/v1's answers and plan text, the missing cases (`EdgeCasesGoldenTest`) -- diffed against its golden, and the net's planted-change proofs (`//pct:pct_edge_net_planted_test`, `//tools/guards:edge_normalize_test`); a regression unless a ruled move re-records it. The corpus's ledgers, the net's fourth part, run in `corpus_duckdb` and `corpus_h2` beside the host passes they read (the owner's call on the per-push cost, 2026-11-19); `//pct:edge_contract_test` is the whole net, for a hand run |
 | (heavy) | 9 | `//pct:pct_channel_b_<lane>` | Channel B on each other database (h2, postgres, sqlite, mariadb, mysql, databricks, snowflake, bigquery, trino, clickhouse), judged against that lane's own channel A ledger (2026-10-11, `docs/CLOUD_BACKENDS_PCT_2026_10_11.md` §16); manual, in `//gates:heavy` |
 | `parser_equivalence` | 8 | `//parser-equivalence:parser_parity`, `//parser-equivalence:round_trip_proof`, `//wasm:round_trip_test` | byte parity with legend-engine's parser; text to JSON to text to JSON over the corpus, lite's projects and the upstream showcase projects, in the JVM and in the tab (the WebAssembly build held to the JVM's answers; the protocol program's leg 5) |
 | `stress` | 10 | `//core:stress_suites`, `//core:stress_suites_h2` | the stress corpus, on DuckDB (shared sessions, MIN_PASS) and on H2 (a fresh session per test, the engine's shape, `StressServiceSuitesH2Test.MIN_PASS`, `StressServiceSuitesTest.MIN_PASS_H2` until 2026-10-16; enforced since 2026-10-05, Bazel workplan P3-12); its measuring knobs are `bazel run //core:stress_tool` |
@@ -162,6 +163,64 @@ seven-family "regression" that does not exist. It cost an hour and a false
 ~320s runtime instead of ~90s. Any one of them means the wrong checkout —
 check the flag before reading the scoreboard. Prefer `tools/allgates.sh`,
 which cannot make this mistake.
+
+## The ord registers emptied, 2026-11-20 -- a sorted chain with unmappable keys compared in sequence (the compat program's next item 3)
+
+The user, 2026-11-20 ~13:10: "Yes need to do result order next" (after "Result order can't match why").
+
+**What changed:** the referee (`spec/.../harness/RefereeVerify`) compares a sorted chain whose sort keys the compared
+output does not carry IN SEQUENCE before anything else. Equal rows in equal order prove legend-engine's SQL and lite's
+answer the same order, a tie's included; the test is tagged `ordered-in-sequence` (printed, not pinned). Only a sorted
+chain whose two sides DIFFER in sequence keeps the multiset compare, tagged `ordered-keys-unmappable` and pinned by these
+registers: a difference there may be a tie's, which no visible key tells from a wrong order.
+
+**The ord registers:**
+- H2 7 -> 0, DuckDB 8 -> 0 (a down move): every line was a test whose two sides are equal in sequence -- A2's four on
+  both lanes and DuckDB's `testSortByLambdaDeepOptional`, and the three older lines on both
+  (`testSortByLambdaWithComplexExpr`, `testLowerProjectColsNotEliminatedWithSort`, `testRestrictWithPostProcessor`).
+- Measured by `//spec:corpus_h2` and `//spec:corpus_duckdb` on the change: the census printed `ordered-in-sequence` for
+  those 7 and 8 tests, and the ord pin reported them GAINED and nothing LOST; no other roster or register moved.
+- Why this is enough for these tests: in each, the sort keys are distinct, or the rows that tie are identical in the
+  output (`John`, `John`), so a correct order on both sides is one sequence. Seven of the eight also assert the order
+  of their own values (the ordered lists of `testSortBy*`, `testLowerProjectColsNotEliminatedWithSort`'s string);
+  `testRestrictWithPostProcessor` asserts only its SQL text, and its row order is now checked here.
+- Not built: the database computing the hidden sort key beside our rows (the earlier proposal). It would tell a tie's
+  difference from a wrong order, and no test in the corpus needs that today; a future one shows up in these registers.
+
+## A2 of the compatibility program, 2026-11-19 -- the corpus rosters' and registers' written reasons (branch `claude/compat-a2-printers`)
+
+Stage A ratified by the user 2026-11-19. A2 deletes legend-engine's SQL text printers (`EngineStyleH2`, `EngineStyleDB2`,
+`EngineStyleComposite`, `EngineTextDialect`) under CP-4: upstream's SQL text is never promised. A request that asks for
+SQL text now gets lite's own. The build spec, with every moved test by name and class, is `A2-shape-note.md` and
+`A2-roster.tsv` on `claude/census-b2`.
+
+**The fail rosters:**
+- H2: 276 -> 423 (+147). DuckDB: 108 -> 260 (+152).
+- Every added test is in `A2-roster.tsv`, with its class:
+  - a1: the text failed and the rows appeal declined;
+  - a2: a printed SQL, plan or DDL string compared with no appeal;
+  - a3: lite has no form for the construct printed;
+  - a4: SQL read from legend-engine's plan;
+  - b: a diverged appeal;
+  - c: legend-engine's plan structure.
+- 0 extra, 0 missing, 0 removed.
+
+**The unordered registers:**
+- H2 899 -> 1,329 (+434, -4). DuckDB 913 -> 1,348 (+440, -5).
+- An added line is a test that passed by its text before and is now judged by its rows, through the SQL-text appeal.
+  Its chain has no sort, so the rows compare as a multiset.
+- A removed line is a test that now fails (it is in `A2-roster.tsv`).
+
+**The engine-order register:** DuckDB -2, +1, with the same cause.
+
+**The ord registers:**
+- H2 3 -> 7 (+4), DuckDB 3 -> 8 (+5): `ordered-keys-unmappable` lines.
+- Each is a sorted chain whose sort keys the row compare cannot map, so it keeps the multiset compare, counted.
+- They passed by their text before A2. The four on both lanes are `testSortByLambdaColumnAddition`,
+  `testRenameColumnsAfterGroupBy`, `testSortByLambdaWithIfElseValue` and `testSortByLambdaWIthIfElseColumn`;
+  DuckDB's fifth is `testSortByLambdaDeepOptional`.
+
+**The skipped rosters:** unchanged.
 
 ## The total wall's M1, 2026-11-09 -- data in the plan, L2 and L3 (branch `claude/total-wall`, 34eeb5a8)
 

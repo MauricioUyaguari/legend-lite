@@ -36,6 +36,39 @@ class PlanJsonTest {
                 List.of(new LoadStep.Statement("create table T(ID INT)")));
     }
 
+    /** A project's refusal is its record, {code, values}, written in a fixed order and read back; a malformed one is
+     *  refused by name (the BE audit 4's SHOULD, 2026-11-21: until then a sentence, then a record no test round-tripped). */
+    @Test
+    void aProjectsRefusalIsItsRecord_writtenInOrder_readBack_aMalformedOneRefusedByName() {
+        com.legend.error.ErrorRecord refused = com.legend.error.ErrorRecord.of(
+                com.legend.error.CompileKind.DATA_TABLE_UNDECLARED, List.of("proj::PartyData", "PARTY.NOPE"));
+        Target t = new Target(new Database.Declared(com.legend.planner.ConnectionPlans.of(new ConnectionDefinition(
+                "store::Conn", "store::DB", Databases.PLATFORM, new ConnectionSpecification.InMemory(),
+                new AuthenticationSpec.TestAuth())), new ExecutionPlan.Project("k", refused)), List.of(), List.of(),
+                null, null, null);
+        String json = PlanJson.write(ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(),
+                new Sql("select 1", List.of(), t, null))));
+        // the code qualified, as the test plan spells a record's (the BE audit 5's L6, 2026-11-21)
+        assertTrue(json.contains("\"refused\":{\"code\":\"compile.DATA_TABLE_UNDECLARED\",\"values\":[\"proj::PartyData\","
+                + "\"PARTY.NOPE\"]}"), json);
+        assertEquals(json, PlanJson.write(PlanJson.read(json)));
+        assertEquals("the Data element proj::PartyData fills PARTY.NOPE, which no Database of the model declares",
+                ((Database.Declared) ((Sql) ((TdsResult) PlanJson.read(json).root()).sql()).target().database())
+                        .project().refused().sentence());
+        // a sentence, an unknown or bare or other code, a value not a text, too few values: each by name (more values
+        // than the sentence prints are facts a record may carry: the BE audit 6's L-2)
+        for (String bad : List.of("\"refused\":\"a sentence\"", "\"refused\":{\"code\":\"compile.NO_SUCH\",\"values\":[]}",
+                "\"refused\":{\"code\":\"DATA_TABLE_UNDECLARED\",\"values\":[\"a\",\"b\"]}",
+                "\"refused\":{\"code\":\"compile.MISSING_STORE\",\"values\":[\"a\"]}",
+                "\"refused\":{\"code\":\"run.DIVIDE_BY_ZERO\",\"values\":[\"a\"]}",
+                "\"refused\":{\"code\":\"compile.DATA_TABLE_UNDECLARED\",\"values\":[1]}",
+                "\"refused\":{\"code\":\"compile.DATA_TABLE_UNDECLARED\",\"values\":[\"one\"]}")) {
+            String broken = json.replaceFirst("\"refused\":\\{[^}]*\\}", java.util.regex.Matcher.quoteReplacement(bad));
+            assertTrue(!broken.equals(json), bad);
+            assertThrows(IllegalArgumentException.class, () -> PlanJson.read(broken), bad);
+        }
+    }
+
     @Test
     void everyNodeKindAndParameterReadsBack() {
         Target t = target(new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth());
@@ -78,7 +111,7 @@ class PlanJsonTest {
                 Databases.PLATFORM, new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth())), null),
                 List.of("SET TimeZone='UTC'"), List.of(), null, null, null),
                 com.legend.setup.LoadSteps.of(List.of(new LoadStep.Statement("create table T(ID INTEGER, NAME VARCHAR)")))
-                        .then(com.legend.setup.LoadSteps.blob(List.of("insert into T values (1, 'O''Brien'), (2, NULL)"), "the data of the table T")));
+                        .then(com.legend.setup.LoadSteps.blob(List.of("insert into T values (1, 'O''Brien'), (2, NULL)"), "T")));
         ExecutionPlan plan = ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(), new Sql("select 1", List.of(), t, null)));
         ExecutionPlan back = PlanJson.read(PlanJson.write(plan));
         assertEquals(plan, back);
@@ -100,7 +133,7 @@ class PlanJsonTest {
                 "[" + "\"x\",".repeat(PlanJson.INLINE_LIMIT_BYTES / 4) + "\"y\"]")) {
             String digest = com.legend.cache.Hash.ofUtf8(json).hex();
             Sql sql = new Sql("select * from json_each(?)", List.of(new Slot("",
-                    new ExecutionPlan.Binding.Payload(digest, "the payload " + digest.substring(0, 16)))), t, null,
+                    new ExecutionPlan.Binding.Payload(digest, json.length()))), t, null,
                     List.of(), null, java.util.Map.of(digest, json));
             ExecutionPlan plan = ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(), sql));
             assertEquals(plan, PlanJson.read(PlanJson.write(plan)));
@@ -119,7 +152,7 @@ class PlanJsonTest {
             }
         }
         var lacks = assertThrows(IllegalArgumentException.class, () -> new Sql("select ?", List.of(new Slot("",
-                new ExecutionPlan.Binding.Payload("0".repeat(64), "the payload"))), t, null, List.of(), null,
+                new ExecutionPlan.Binding.Payload("0".repeat(64), 0))), t, null, List.of(), null,
                 java.util.Map.of()));
         assertTrue(lacks.getMessage().contains("which its content lacks"), lacks.getMessage());
         var unread = assertThrows(IllegalArgumentException.class, () -> new Sql("select 1", List.of(), t, null,
@@ -133,6 +166,25 @@ class PlanJsonTest {
         ExecutionPlan plan = ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.VALUE,
                 List.of(new Column("value", "Integer", new Multiplicity(1, 1), "BIGINT", null, null)), new Sql("select 1", List.of(), t, null)));
         assertEquals(plan, PlanJson.read(PlanJson.write(plan)));
+    }
+
+    /** A raise site's every operand kind reads back as written (stage B's B1, 2026-11-20): a literal by its Pure kind,
+     *  a Float and a Decimal as text (never a JSON number), and a computed one as its position alone. */
+    @Test
+    void aSitesOperandsOfEveryKindReadBack() {
+        Target t = new Target(new Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null),
+                List.of(), List.of(), null, null, null);
+        List<Operand> every = List.of(new Operand.Text("label"), new Operand.Int(-7), new Operand.Flt(0.1 + 0.2),
+                new Operand.Dec(new java.math.BigDecimal("12.3400")), new Operand.Bool(true), new Operand.Day("2016-12-32"),
+                new Operand.Instant("2017-01-01T10:30:00+0000"), Operand.Computed.IT);
+        Sql sql = new Sql("select 1", List.of(), t, null).raising(List.of(
+                new ExecutionPlan.Site(1, com.legend.sql.RaiseKind.DIVIDE_BY_ZERO, every),
+                new ExecutionPlan.Site(2, com.legend.sql.RaiseKind.SHIFT_OUT_OF_RANGE, List.of())));
+        ExecutionPlan plan = ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.VALUE,
+                List.of(new Column("value", "Integer", new Multiplicity(1, 1), "BIGINT", null, null)), sql));
+        assertEquals(plan, PlanJson.read(PlanJson.write(plan)));
+        assertTrue(PlanJson.write(plan).contains("{\"float\":\"0.30000000000000004\"}"), PlanJson.write(plan));
+        assertTrue(PlanJson.write(plan).contains("{\"decimal\":\"12.3400\"}"), PlanJson.write(plan));
     }
 
     /** The settings a target's database must have (the C checkpoint's SHOULD-FIX 3, 2026-11-12: H2's MODE and null
@@ -211,15 +263,53 @@ class PlanJsonTest {
         // over 47 when the two merged): the payload named by its digest, its text the statement's content; 49 since
         // 2026-11-12: a target's database settings (the C checkpoint's SHOULD-FIX 3); 50 the same day: a target's
         // transaction, the statements a host opens one with (the re-audit's S8); 51 the same day: a stream step's
-        // statement the planner's own plan of the snapshot's pull (the user's ruling)
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":51,"), json);
+        // statement the planner's own plan of the snapshot's pull (the user's ruling); 52 since 2026-11-13: a raise's
+        // message as its kind and operands in a statement's tree (phase D's D1.1, merged onto 51); 53 since 2026-11-13 (E-4):
+        // every cast's and case's reason; 54 since 2026-11-15: a plan's raises, each kind its statements can send to its
+        // sentence (phase D's option (D), its number after E's); 55 since 2026-11-16: each statement's raises (S1); 56 since 2026-11-16: each statement's raise
+        // sites, a raise a bare token (phase D's Phase 2); 57 since 2026-11-17: a decimal column's digits (the host train); 58 since 2026-11-18: a site carries no upstream
+        // words (K10); 59 since 2026-11-20: a site carries its operands and no words, the plan's raises its kinds (B1);
+        // 60 since 2026-11-21: a site carries no where, the plan's text components no prose (stage B's BE)
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":60,"), json);
+    }
+
+    /** A v55 plan (each statement's raises a kind's name in its text) is refused by its version, never read as a v56
+     *  one whose statements declare no site (the P2 checkpoint audit's S1, 2026-11-16; phase D's Phase 2, the same
+     *  day); a v56 plan (an edge site's upstream words in it) likewise, never read as a v58 one (K10, 2026-11-18); a v58
+     *  plan (each site's product words in it) likewise, never read as a v59 one (stage B's B1, 2026-11-20); a v59 plan
+     *  (a site's where, a load's and a payload's prose) never read as a v60 one (stage B's BE, 2026-11-21). */
+    @Test
+    void aV55PlanIsRefusedByItsVersion() {
+        Target t = target(new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth());
+        String json = PlanJson.write(ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(),
+                new Sql("select 1", List.of(), t, null))));
+        for (int old : List.of(55, 56, 57, 58, 59)) {
+            String older = json.replace("\"version\":60,", "\"version\":" + old + ",");
+            assertTrue(!older.equals(json), json);
+            var refused = assertThrows(IllegalArgumentException.class, () -> PlanJson.read(older));
+            assertTrue(refused.getMessage().contains("not a legend-lite-plan v60 plan (format legend-lite-plan, version "
+                    + old + ")"), refused.getMessage());
+        }
+    }
+
+    /** A column of no precise decimal writes no {@code decimal} key, and reads back null (2026-11-18, the orchestrator's
+     *  ruling (A): omitted when null, a codec form, not a format change -- lean SQL's G3). */
+    @Test
+    void aColumnOfNoDecimalWritesNoDecimalKeyAndReadsBackNull() {
+        Target t = target(new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth());
+        String json = PlanJson.write(ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.RELATION,
+                List.of(new Column("x", "Integer", new Multiplicity(1, 1), "BIGINT", null, null)),
+                new Sql("select 1", List.of(), t, null))));
+        assertTrue(!json.contains("\"decimal\""), json);
+        TdsResult read = (TdsResult) PlanJson.read(json).root();
+        assertEquals(null, read.columns().get(0).decimal(), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v51 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v60 plan"), refused.getMessage());
     }
 
     /**
@@ -290,9 +380,10 @@ class PlanJsonTest {
         assertTrue(json.contains("create table T(ID INT)"), json);
         assertEquals(plan, PlanJson.read(json));
         // the section naming one identity twice
-        String section = json.substring(json.indexOf("\"loads\":[{"));
+        // the section runs to the plan's raises (v53), which follow it
+        String section = json.substring(json.indexOf("\"loads\":[{"), json.indexOf(",\"raises\":"));
         String twice = json.replace("\"loads\":[{", "\"loads\":[" + section.substring("\"loads\":[".length(),
-                section.length() - 2) + ",{");
+                section.length() - 1) + ",{");
         IllegalArgumentException dup = assertThrows(IllegalArgumentException.class, () -> PlanJson.read(twice));
         assertTrue(dup.getMessage().contains("names a load twice"), dup.getMessage());
         // a target naming a load the section lacks

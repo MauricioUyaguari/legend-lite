@@ -3,6 +3,7 @@
 
 package com.legend.sql.dialect;
 
+
 import com.legend.sql.DialectCapability;
 
 import com.legend.sql.SqlExpr;
@@ -65,21 +66,15 @@ class SqlWriterTest {
         }
     }
 
-    @Test
-    void theLegacyEngineTextPlanBindsNothing() {
-        var refused = assertThrows(DialectCapability.class, () -> new EngineStyleH2().renderStatement(QUERY));
-        assertTrue(refused.getMessage().contains("template variables"), refused.getMessage());
-    }
-
     // ---- E-2: parameters bound where they are written ------------------------------------------------------------
 
     private static final SqlExpr NAME = SqlExpr.Column.physical("t0", "NAME");
     private static final SqlExpr AGE = SqlExpr.Column.physical("t0", "AGE");
     // a plan's parameters, typed as the planner types them (QueryParameters.Declared.slot): one bound must have a type
-    private static final SqlExpr.PlanParam P_NAME = new SqlExpr.PlanParam("name", SqlExpr.PlanParam.Kind.STRING, false,
-            null, com.legend.sql.SqlTyping.typed(com.legend.sql.SqlType.Scalar.VARCHAR), null);
-    private static final SqlExpr.PlanParam P_AGE = new SqlExpr.PlanParam("maxAge", SqlExpr.PlanParam.Kind.OTHER, false,
-            null, com.legend.sql.SqlTyping.typed(com.legend.sql.SqlType.Scalar.BIGINT), null);
+    private static final SqlExpr.PlanParam P_NAME = new SqlExpr.PlanParam("name", SqlExpr.PlanParam.ValueType.STRING, false,
+            com.legend.sql.SqlTyping.typed(com.legend.sql.SqlType.Scalar.VARCHAR), null);
+    private static final SqlExpr.PlanParam P_AGE = new SqlExpr.PlanParam("maxAge", SqlExpr.PlanParam.ValueType.OTHER, false,
+            com.legend.sql.SqlTyping.typed(com.legend.sql.SqlType.Scalar.BIGINT), null);
 
     private static SqlSelect where(SqlExpr predicate) {
         return QUERY.withWhere(predicate);
@@ -145,11 +140,9 @@ class SqlWriterTest {
 
     @Test
     void whatOneBoundValueCannotCarryIsRefusedByName() {
-        SqlExpr.PlanParam raw = new SqlExpr.PlanParam("wrapper", SqlExpr.PlanParam.Kind.RAW);
-        SqlExpr.PlanParam level = new SqlExpr.PlanParam("level", SqlExpr.PlanParam.Kind.ENUM, false, "test::Level");
+        // (a RAW splice and a legacy printer's enumeration-mapping function were refused here until 2026-11-18: the
+        // audit's J31 took them out of the MIR, legend-engine's template parameter the edge's own table)
         for (Map.Entry<SqlExpr.Call, String> c : List.of(
-                Map.entry(SqlExpr.Call.of(SqlFn.EQUAL, NAME, raw), "is RAW"),
-                Map.entry(SqlExpr.Call.of(SqlFn.EQUAL, NAME, level), "legacy printer's mapping function"),
                 Map.entry(SqlExpr.Call.of(SqlFn.IN, NAME, P_NAME), "is not a list parameter"))) {
             var refused = assertThrows(DialectCapability.class, () -> new DuckDb().renderStatement(where(c.getKey())));
             assertTrue(refused.getMessage().contains(c.getValue()), refused.getMessage());

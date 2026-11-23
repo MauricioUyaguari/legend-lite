@@ -40,6 +40,7 @@ class ChannelBEssentialTest {
     void essentialCensus() throws Exception {
         java.util.List<String> walls = new java.util.ArrayList<>();
         List<ChannelB.Outcome> out = runSuite(walls);
+        ChannelBDiff.edge(out);   // the edge golden net (2026-11-16)
         walls.forEach(w -> System.out.println("[chB-wall] " + w));
         System.out.println("[chB] walls=" + walls.size());
         // audit-of-audits #12: the wall count is ASSERTED shrink-only —
@@ -67,7 +68,7 @@ class ChannelBEssentialTest {
         // ANOTHER LANE (2026-10-11, the user's ask): channel B on a database other than DuckDB is judged against that
         // lane's own channel A ledger and engine manifest, by its own measured numbers (ChannelBLane); the pins below
         // are the reference lane's
-        if (!ChannelBLane.isReference()) {
+        if (!ChannelBLane.isReference() || ChannelB.lite()) {
             ChannelBLane.judge("Essential", "chB", out);
             return;
         }
@@ -293,6 +294,7 @@ class ChannelBEssentialTest {
         // the EXACT gate (2026-11-03): every failure ledgered with its text, every ledgered test failing
         ChannelBLedger.judge("Essential", out, ChannelBLedger.of(org.finos.legend.lite.pct.extension.PctBackend.name(),
                 "Essential"));
+        ChannelBLane.judgeSqlHeld("Essential");
     }
 
     /** The engine's relational essential manifest exclusions (its relational

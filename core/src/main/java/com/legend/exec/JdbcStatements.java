@@ -69,7 +69,22 @@ final class JdbcStatements implements Statements {
      *  looked at, every failure paid the session's metadata read), else the database's own text
      *  ({@link RaisedErrors#dataError(SQLException, java.util.function.Supplier)}). */
     private com.legend.error.DataError failed(SQLException e) {
-        com.legend.error.DataError failure = RaisedErrors.dataError(e, () -> heldBy(e));
+        return failed(e, List.of());
+    }
+
+    /** {@link #failed(SQLException)} of a statement whose plan declares {@code sites}: a token it raised read through
+     *  them (phase D's Phase 2, 2026-11-16). */
+    private com.legend.error.DataError failed(SQLException e, List<ExecutionPlan.Site> sites) {
+        return turned(RaisedErrors.dataError(e, sites, () -> heldBy(e)));
+    }
+
+    /** {@link #failed(SQLException)} of the plan's {@code statement}: a token it raised read through its sites. */
+    private com.legend.error.DataError failed(SQLException e, PlannedSql statement) {
+        return failed(e, statement.sites());
+    }
+
+    /** {@code failure}, the turn rolled back first where the database aborted it. */
+    private com.legend.error.DataError turned(com.legend.error.DataError failure) {
         if (state.inTurn() && aborts()) {
             // a statement failed inside a run's turn on the catalog (§3 rule 3, A4) on a database that has aborted the
             // turn's whole transaction (DuckDB), refusing every statement until a rollback: the turn rolls back now and
@@ -101,8 +116,16 @@ final class JdbcStatements implements Statements {
         }
         for (ExecutionPlan.Slot slot : slots) {
             if (slot.binding() instanceof ExecutionPlan.Binding.Payload payload) {
-                com.legend.error.DataError named = new com.legend.error.DataError(payload.label() + " was refused: "
-                        + failure.getMessage(), failure.getCause() != null ? failure.getCause() : e);
+                Throwable cause = failure.getCause() != null ? failure.getCause() : e;
+                // the payload named from the plan's facts, the catalog's words (stage B's BE, 2026-11-21)
+                String message = com.legend.error.ErrorKind.PAYLOAD_REFUSED.sentence(List.of(
+                        payload.digest().substring(0, 16), Integer.toString(payload.characters()),
+                        String.valueOf(failure.getMessage())));
+                // the database's own failure keeps its kind, SQLSTATE and words, named by the payload it refused
+                com.legend.error.DataError named = failure.kind() != null && failure.kind().isDatabases()
+                        ? com.legend.error.DataError.database(failure.kind(), failure.sqlState(),
+                                java.util.Objects.requireNonNull(failure.databaseMessage()), message, cause)
+                        : new com.legend.error.DataError(message, cause);
                 for (Throwable suppressed : failure.getSuppressed()) {
                     named.addSuppressed(suppressed);
                 }
@@ -262,7 +285,7 @@ final class JdbcStatements implements Statements {
         try {
             return send(c, statement, Send.TEXT_EXECUTE, Bind.NOTHING, JdbcStatements::executedOf);
         } catch (SQLException e) {
-            throw failed(e);
+            throw failed(e, statement);
         }
     }
 
@@ -273,7 +296,7 @@ final class JdbcStatements implements Statements {
         try {
             return send(c, statement, Send.UPDATE, st -> bindAll(st, slots, values), JdbcStatements::countOf);
         } catch (SQLException e) {
-            throw naming(e, failed(e), slots);
+            throw naming(e, failed(e, statement), slots);
         }
     }
 
@@ -283,7 +306,7 @@ final class JdbcStatements implements Statements {
         try {
             return send(c, statement, Send.TEXT_QUERY, Bind.NOTHING, a -> reported(rowsOf(a).getMetaData()));
         } catch (SQLException e) {
-            throw failed(e);
+            throw failed(e, statement);
         }
     }
 
@@ -296,7 +319,7 @@ final class JdbcStatements implements Statements {
                 return md == null ? List.<Reported>of() : reported(md);
             });
         } catch (SQLException e) {
-            throw failed(e);
+            throw failed(e, statement);
         }
     }
 
@@ -321,7 +344,7 @@ final class JdbcStatements implements Statements {
                 }
             }, JdbcStatements::executedOf);
         } catch (SQLException e) {
-            throw failed(e);
+            throw failed(e, statement);
         }
     }
 
@@ -380,7 +403,7 @@ final class JdbcStatements implements Statements {
                 return Boolean.TRUE;   // the rows went to the act's sink
             });
         } catch (SQLException e) {
-            throw naming(e, failed(e), slots);
+            throw naming(e, failed(e, statement), slots);
         }
     }
 
@@ -432,7 +455,7 @@ final class JdbcStatements implements Statements {
                 return Boolean.TRUE;   // the rows went to the act's sink
             });
         } catch (SQLException e) {
-            throw naming(e, failed(e), slots);
+            throw naming(e, failed(e, statement), slots);
         }
     }
 
@@ -461,7 +484,7 @@ final class JdbcStatements implements Statements {
                 return Boolean.TRUE;   // the rows went to the act's sink
             });
         } catch (SQLException e) {
-            throw naming(e, failed(e), slots);
+            throw naming(e, failed(e, statement), slots);
         }
     }
 

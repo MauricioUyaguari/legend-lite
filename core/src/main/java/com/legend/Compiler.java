@@ -36,14 +36,23 @@ public final class Compiler {
      *  router: which level users get is decided HERE. */
     public static ParsedModel parseModel(String source) {
         return ModelFromText.parse(source,
-                com.legend.parser.Dialect.LEGEND_LITE);
+                com.legend.parser.GrammarLevel.LEGEND_LITE);
     }
 
     /** Parse one query/expression at the PRODUCT level. */
     public static com.legend.protocol.spec.ValueSpecification
             parseQuery(String query) {
         // through the parse door, which asks the run's wall (C5-J item 1, 2026-11-15)
-        return com.legend.door.Parse.query(query, com.legend.parser.Dialect.LEGEND_LITE);
+        return com.legend.door.Parse.query(query, com.legend.parser.GrammarLevel.LEGEND_LITE);
+    }
+
+    /** A query's text as its lambda's protocol JSON at the PRODUCT level, without source information: text with no
+     *  leading {@code |} reads as a lambda of no parameters. Lite's API v1 {@code query/parse} (2026-11-17: lite's own
+     *  grammar, its islands included -- {@code #Cypher{...}#}, {@code #SQL}, {@code #TS}; legend-engine's grammarToJson,
+     *  the edge's, reads legend-engine's). Through the parse door's product entry, which reads legend-lite's one grammar
+     *  (J21 of the edge audit, 2026-11-17). */
+    public static String parseQueryJson(String query) {
+        return com.legend.door.Parse.lambdaJson(query, false);
     }
 
 
@@ -73,13 +82,24 @@ public final class Compiler {
      * @return the populated, queryable {@link ModelContext}.
      */
     public static ModelContext compileModel(@com.legend.base.Nullable String model) {
-        return buildPositioned(parsedModel(model));
+        Objects.requireNonNull(model, "model");
+        return observed(buildPositioned(parsedModel(model)), model);
     }
 
     /** A model's text as the parsed model the compiler builds from (step B, through the compiler's door). */
     private static ParsedModel parsedModel(@com.legend.base.Nullable String model) {
         Objects.requireNonNull(model, "model");
-        return ModelFromText.parse(model, com.legend.parser.Dialect.LEGEND_LITE);
+        return ModelFromText.parse(model, com.legend.parser.GrammarLevel.LEGEND_LITE);
+    }
+
+    /** {@code ctx}, compiled from {@code model}'s text, shown to a test harness's observer (E-1): none in the product.
+     *  Every compile of a text passes here, {@link #compileErrors(String)}'s and {@link #placedCompileErrors}' too. */
+    private static ModelContext observed(ModelContext ctx, String model) {
+        com.legend.planner.PlanningObserver seen = com.legend.planner.PlanningObserver.installed();
+        if (seen != null) {
+            seen.modelCompiled(ctx, model);
+        }
+        return ctx;
     }
 
     /**
@@ -98,7 +118,7 @@ public final class Compiler {
     public static ModelContext compileModel(String model, String library) {
         Objects.requireNonNull(model, "model");
         Library lib = library(Objects.requireNonNull(library, "library"));
-        ParsedModel parsed = ModelFromText.parse(model, com.legend.parser.Dialect.LEGEND_LITE);
+        ParsedModel parsed = ModelFromText.parse(model, com.legend.parser.GrammarLevel.LEGEND_LITE);
         try {
             java.util.Set<String> known = new java.util.HashSet<>(bootFqns());
             known.addAll(lib.names());
@@ -122,7 +142,7 @@ public final class Compiler {
             if (where.isEmpty()) {
                 throw e;
             }
-            throw new com.legend.error.ModelException(e.phase(), where.get() + " " + e.getMessage(), e.element());
+            throw com.legend.error.ModelException.placed(e, where.get());
         }
     }
 
@@ -163,7 +183,7 @@ public final class Compiler {
 
     private static Library library(String text) {
         return LIBRARIES.getOrCompute(com.legend.cache.Hash.ofUtf8(text), () -> {
-            ParsedModel parsed = ModelFromText.parse(text, com.legend.parser.Dialect.LEGEND_LITE);
+            ParsedModel parsed = ModelFromText.parse(text, com.legend.parser.GrammarLevel.LEGEND_LITE);
             // the library alone over the boot layer, checked strictly (a library that does not compile is refused
             // whole, as compileModel refuses a model): the layer's own elements, then the boot layer's
             Layer layer;
@@ -179,7 +199,7 @@ public final class Compiler {
                 if (where.isEmpty()) {
                     throw e;
                 }
-                throw new com.legend.error.ModelException(e.phase(), where.get() + " " + e.getMessage(), e.element());
+                throw com.legend.error.ModelException.placed(e, where.get());
             }
             NormalizedModel own = new NormalizedModel(List.copyOf(layer.model().elements().subList(0, layer.own())),
                     layer.model().imports(), layer.model().legacySurfaces());
@@ -243,7 +263,7 @@ public final class Compiler {
             if (where.isEmpty()) {
                 throw e;
             }
-            throw new com.legend.error.ModelException(e.phase(), where.get() + " " + e.getMessage(), e.element());
+            throw com.legend.error.ModelException.placed(e, where.get());
         }
     }
 
@@ -293,7 +313,7 @@ public final class Compiler {
     public static ParsedModule parseSources(List<ModelSource> sources,
             java.util.function.@com.legend.base.Nullable BiConsumer<String, String> parseWallSink) {
         return parseSources(sources, parseWallSink,
-                com.legend.parser.Dialect.LEGEND_LITE);
+                com.legend.parser.GrammarLevel.LEGEND_LITE);
     }
 
     /** As above, DIALECT-EXPLICIT: the caller declares its sources'
@@ -301,7 +321,7 @@ public final class Compiler {
      *  LEGEND_PLATFORM; user batches are LEGEND_LITE). */
     public static ParsedModule parseSources(List<ModelSource> sources,
             java.util.function.@com.legend.base.Nullable BiConsumer<String, String> parseWallSink,
-            com.legend.parser.Dialect dialect) {
+            com.legend.parser.GrammarLevel dialect) {
         Objects.requireNonNull(sources, "sources");
         List<com.legend.model.PackageableElement> elements = new java.util.ArrayList<>();
         java.util.Map<String, Integer> offsets = new java.util.HashMap<>();
@@ -714,10 +734,8 @@ public final class Compiler {
             if (srcName == null || off == null) {
                 throw e;
             }
-            throw new com.legend.error.ModelException(e.phase(),
-                    srcName + " " + ParsedModel.positionIn(java.util.Objects.requireNonNull(
-                                    module.sourceTexts().get(srcName)), off)
-                            + " " + e.getMessage(), e.element());
+            throw com.legend.error.ModelException.placed(e, srcName + " " + ParsedModel.positionIn(
+                    java.util.Objects.requireNonNull(module.sourceTexts().get(srcName)), off));
         }
     }
 
@@ -744,7 +762,12 @@ public final class Compiler {
      * model is compiled once ({@link #compileModel}) and never again per question.
      */
     public static TypedQuery query(ModelContext ctx, String query) {
-        return query(ctx, parseQuery(query));
+        TypedQuery typed = query(ctx, parseQuery(query));
+        com.legend.planner.PlanningObserver seen = com.legend.planner.PlanningObserver.installed();
+        if (seen != null) {
+            seen.queryTyped(typed, query);   // a test harness's observer (E-1): none in the product
+        }
+        return typed;
     }
 
     /** {@link #query(ModelContext, String)} for a query that arrives ALREADY PARSED — an upstream {@code pure/v1}
@@ -917,18 +940,13 @@ public final class Compiler {
      * caller renders with a dialect of its choosing and compares text).
      */
     /**
-     * {@code relationalRootForm}: a BARE class root renders as the engine's
-     * flat relational SELECT — primary-key columns ({@code pk_0}..) plus
-     * the property leaves — instead of the platform's JSON envelope. The
-     * engine assembles objects HOST-side from that flat select, so its
-     * {@code toSQLString} goldens pin this form; execution paths never use
-     * it (Java orchestrates, the database executes — the envelope stays).
+     * (Its {@code relationalRootForm} flag, legend-engine's flat relational SELECT of a bare class root, which every
+     * caller passed false, went with legend-engine's SQL text: A2 of the compatibility program, 2026-11-19, CP-4.)
      */
     public static com.legend.sql.SqlQuery lowerResolved(
             com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
-            String runtimeFqn, boolean relationalRootForm) {
-        return lowerResolved(resolved, ctx, runtimeFqn, relationalRootForm,
-                null);
+            String runtimeFqn) {
+        return lowerResolved(resolved, ctx, runtimeFqn, null);
     }
 
     /** {@code explicitMappingFqn}: class fetches resolve against THIS
@@ -937,7 +955,7 @@ public final class Compiler {
      * the ambient runtime candidates). */
     public static com.legend.sql.SqlQuery lowerResolved(
             com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
-            String runtimeFqn, boolean relationalRootForm,
+            String runtimeFqn,
             @com.legend.base.Nullable String explicitMappingFqn) {
         SpecCompiler specs = new SpecCompiler(ctx);
         java.util.List<TypedSpec> body = specs.typeQueryBody(resolved);
@@ -950,18 +968,21 @@ public final class Compiler {
         body = new com.legend.resolver.StoreResolver(ctx, specs)
                 .resolve(body, runtimeFqn, explicitMappingFqn);
         CrossStoreGuard.check(body, ctx, runtimeFqn);
-        if (relationalRootForm) {
-            body = com.legend.resolver.RelationalRootForm.apply(body, ctx);
-        }
         // D91: equal() over keyed instances is the key relation on every lane
         // every object carries its identity and its class (docs/OBJECT_IDENTITY_2026_10_20.md §3.1)
         com.legend.lowering.Lowerer lw = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.objectLayoutOf(ctx, t),
                 f -> ctx.findClass(f).isPresent(), ctx.implementations())
                 .withInstanceKeys(t -> com.legend.compiler.element.EqualityKeys.resolve(ctx, t))
-                .withObjectIdentity(new com.legend.lowering.ObjectSites()::idOf);
+                .withObjectIdentity(new com.legend.lowering.ObjectSites()::idOf)
+                // the product's text facets and raises, chosen explicitly (the audit's K6, 2026-11-17)
+                .withStyled(com.legend.lowering.Styled.PRODUCT)
+                // a Float literal as the runtime's database computes it in the product (register S20, Phase 5b)
+                .withFloatLiteralKind(() -> runtimeFqn == null ? null : com.legend.database.PlanStyle.PRODUCT
+                        .dialect(executesOn(ctx, runtimeFqn).type()).floatLiteralKind());
         if (!temporalRoot) {
-            lw = lw.withEngineExistsJoinForm();
+            // the style's forms decide its shape (J19, S367): the product's keeps the EXISTS
+            lw = lw.withExistsJoinable();
         }
         return lw.lower(body);
     }
@@ -979,7 +1000,7 @@ public final class Compiler {
      */
     public static java.util.Map<String, String> compileAllBodies(ModelContext ctx) {
         java.util.Map<String, String> walls = new java.util.LinkedHashMap<>();
-        for (BodyWall wall : bodyWalls(ctx)) {
+        for (BodyWall wall : bodyWalls(ctx, e -> String.valueOf(e.getMessage()))) {
             walls.put(wall.key(), wall.message());
         }
         return walls;
@@ -994,9 +1015,12 @@ public final class Compiler {
     private record BodyWall(String key, String message, @com.legend.base.Nullable String element) {
     }
 
-    /** {@link #compileAllBodies}'s walls, in its order, each with the element its body was written in. A key walled
-     *  twice keeps its first place and its last message, as the map it fills does. */
-    private static java.util.List<BodyWall> bodyWalls(ModelContext ctx) {
+    /** {@link #compileAllBodies}'s walls, in its order, each with the element its body was written in and worded by
+     *  {@code words} (a compile error's kind in the product's sentence, or the edge's: D1.6, W7 of
+     *  docs/records/d-plan-2026-11-16.md). A key walled twice keeps its first place and its last message, as the map it
+     *  fills does. */
+    private static java.util.List<BodyWall> bodyWalls(ModelContext ctx,
+            java.util.function.Function<Throwable, String> words) {
         SpecCompiler specs = new SpecCompiler(ctx);
         java.util.Map<String, BodyWall> walls = new java.util.LinkedHashMap<>();
         // the MODULE's own bodies: the boot layer's (the system metamodel's
@@ -1013,7 +1037,8 @@ public final class Compiler {
             try {
                 overloads = ctx.findFunction(fqn);
             } catch (RuntimeException e) {
-                walls.put(fqn, new BodyWall(fqn, String.valueOf(e.getMessage()), null));
+                // the caller's words (the P2 checkpoint audit's S7, 2026-11-16: the edge's are upstream's)
+                walls.put(fqn, new BodyWall(fqn, words.apply(e), null));
                 continue;
             }
             for (com.legend.compiler.element.TypedFunction tf : overloads) {
@@ -1029,7 +1054,7 @@ public final class Compiler {
                     String key = tf.id().qualified();
                     String element = tf.definition() instanceof com.legend.model.FunctionDefinition fd
                             && fd.synthesizedFrom() != null ? fd.synthesizedFrom().ownerFqn() : key;
-                    walls.put(key, new BodyWall(key, String.valueOf(e.getMessage()), element));
+                    walls.put(key, new BodyWall(key, words.apply(e), element));
                 }
             }
         }
@@ -1041,19 +1066,31 @@ public final class Compiler {
      * ({@link #compileModel}, which stops at the first element error), then every body in it
      * ({@link #compileAllBodies}, which collects them all). The messages: the first element error alone, else every
      * body's, in {@code compileAllBodies}' order; empty when the model compiles. Both {@code compilation/compile}
-     * routes answer from it ({@link #placedCompileErrors}, each error with where it is) -- legend-engine's with the
-     * first error, legend-lite's with all of them -- and the SDLC checks a tree with it. A failure that is not the
-     * model's (a malformed argument, a compiler bug) is thrown, not listed as one of its errors.
+     * routes answer from it -- legend-engine's with the first error and where it is ({@link #placedCompileErrors}),
+     * legend-lite's {@code model/check} with all of them -- and the SDLC checks a tree with it. A failure that is not
+     * the model's (a malformed argument, a compiler bug) is thrown, not listed as one of its errors.
      */
     public static java.util.List<String> compileErrors(String model) {
-        return messages(placedCompileErrors(model));
+        return compileErrors(model, e -> String.valueOf(e.getMessage()));
+    }
+
+    /** {@link #compileErrors(String)}, each error worded by {@code words}: the compatibility edge's route words a compile
+     *  error's kind as legend-engine does ({@code edge.PureMessages.compile}; D1.6, W7). */
+    public static java.util.List<String> compileErrors(String model, java.util.function.Function<Throwable, String> words) {
+        return messages(placedCompileErrors(model, words));
     }
 
     /** {@link #compileErrors(String)} for a model given as protocol records ({@link
      *  #compileModel(com.legend.protocol.Protocol.PureModelContextData)}, leg 8 step 3: a client's
      *  {@code PureModelContextData}). */
     public static java.util.List<String> compileErrors(com.legend.protocol.Protocol.PureModelContextData model) {
-        return messages(placedCompileErrors(model));
+        return compileErrors(model, e -> String.valueOf(e.getMessage()));
+    }
+
+    /** {@link #compileErrors(com.legend.protocol.Protocol.PureModelContextData)}, each error worded by {@code words}. */
+    public static java.util.List<String> compileErrors(com.legend.protocol.Protocol.PureModelContextData model,
+            java.util.function.Function<Throwable, String> words) {
+        return messages(placedCompileErrors(model, words));
     }
 
     /**
@@ -1072,16 +1109,20 @@ public final class Compiler {
         }
     }
 
-    /** {@link #compileErrors(String)}, each error with where it is ({@link CompileError}). */
-    public static java.util.List<CompileError> placedCompileErrors(String model) {
-        return compileErrorsOf(() -> parsedModel(model));
+    /** {@link #compileErrors(String, java.util.function.Function)}, each error with where it is ({@link CompileError}):
+     *  legend-engine's {@code compilation/compile} route answers its first error with the engine's
+     *  {@code sourceInformation} (docs/SEMANTICS_REGISTER.md S400). */
+    public static java.util.List<CompileError> placedCompileErrors(String model,
+            java.util.function.Function<Throwable, String> words) {
+        return compileErrorsOf(() -> parsedModel(model), parsed -> observed(buildPositioned(parsed), model), words);
     }
 
-    /** {@link #compileErrors(com.legend.protocol.Protocol.PureModelContextData)}, each error with where it is
-     *  ({@link CompileError}). */
+    /** {@link #compileErrors(com.legend.protocol.Protocol.PureModelContextData, java.util.function.Function)}, each
+     *  error with where it is ({@link CompileError}). */
     public static java.util.List<CompileError> placedCompileErrors(
-            com.legend.protocol.Protocol.PureModelContextData model) {
-        return compileErrorsOf(() -> parsedModel(model));
+            com.legend.protocol.Protocol.PureModelContextData model,
+            java.util.function.Function<Throwable, String> words) {
+        return compileErrorsOf(() -> parsedModel(model), Compiler::buildPositioned, words);
     }
 
     private static java.util.List<String> messages(java.util.List<CompileError> errors) {
@@ -1092,18 +1133,20 @@ public final class Compiler {
         return java.util.List.copyOf(out);
     }
 
-    private static java.util.List<CompileError> compileErrorsOf(java.util.function.Supplier<ParsedModel> read) {
+    private static java.util.List<CompileError> compileErrorsOf(java.util.function.Supplier<ParsedModel> read,
+            java.util.function.Function<ParsedModel, ModelContext> build,
+            java.util.function.Function<Throwable, String> words) {
         // null until the model is read: a model the compiler does not read has no element to place its error by
         ParsedModel parsed = null;
         ModelContext ctx;
         try {
             parsed = read.get();
-            ctx = buildPositioned(parsed);
+            ctx = build.apply(parsed);
         } catch (com.legend.error.LegendCompileException | com.legend.error.NotImplementedException e) {
-            return java.util.List.of(new CompileError(String.valueOf(e.getMessage()), spanOfElement(parsed, e)));
+            return java.util.List.of(new CompileError(words.apply(e), spanOfElement(parsed, e)));
         }
         java.util.List<CompileError> errors = new java.util.ArrayList<>();
-        for (BodyWall wall : bodyWalls(ctx)) {
+        for (BodyWall wall : bodyWalls(ctx, words)) {
             errors.add(new CompileError(wall.message(),
                     wall.element() == null ? null : parsed.span(wall.element()).orElse(null)));
         }

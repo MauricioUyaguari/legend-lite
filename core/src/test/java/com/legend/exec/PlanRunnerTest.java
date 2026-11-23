@@ -49,8 +49,10 @@ class PlanRunnerTest {
                 () -> PlanParameters.check(List.of(p), Map.of(p.name(), value))).getMessage();
     }
 
+    /** Lite's sentence of the values their parameters do not take (J8 of the edge audit, 2026-11-17: legend-engine's
+     *  "Invalid provided parameter(s): [...]" is the edge's, PureMessages). */
     private static String invalid(String... problems) {
-        return "Invalid provided parameter(s): [" + String.join("; ", problems) + "]";
+        return com.legend.error.InvalidParameters.sentence(java.util.List.of(problems));
     }
 
     @Test
@@ -70,7 +72,7 @@ class PlanRunnerTest {
         assertEquals(new BigDecimal("1000"), one("Decimal", new BigDecimal("1E+3")));
         // a Number: a Long, a Double (as a Float), a BigDecimal (as a Decimal)
         assertEquals(7L, one("Number", 7L));
-        assertEquals(new BigDecimal("1.5"), one("Number", 1.5d));
+        assertEquals(1.5d, one("Number", 1.5d));
         assertEquals(new BigDecimal("2.50"), one("Number", new BigDecimal("2.50")));
     }
 
@@ -78,16 +80,16 @@ class PlanRunnerTest {
         return ((PlanParameters.One) PlanParameters.check(List.of(p), Map.of(p.name(), value)).get(p.name())).value();
     }
 
-    /** A Float binds as its literal is typed (the numeric charter's Rule 1): its plain digits as a decimal; at an
-     *  extreme magnitude (at least 1e15, or below 1e-6) a double, as the literal is written in exponent form. */
+    /** A Float binds as the double (register S20, built 2026-11-17, Phase 5b: until then the numeric charter's Rule 1,
+     *  its plain digits as a decimal): every magnitude, the value itself. */
     @Test
     void aFloatIsBoundAsItsLiteralIsTyped() {
-        assertEquals(new BigDecimal("1.1"), one("Float", 1.1d));
-        assertEquals(new BigDecimal("5.0"), one("Float", 5.0d));
-        assertEquals(new BigDecimal("0.0"), one("Float", -0.0d));
-        assertEquals(new BigDecimal("999999999999999.9"), one("Float", 999999999999999.9d));
+        assertEquals(1.1d, one("Float", 1.1d));
+        assertEquals(5.0d, one("Float", 5.0d));
+        assertEquals(-0.0d, one("Float", -0.0d));
+        assertEquals(999999999999999.9d, one("Float", 999999999999999.9d));
         assertEquals(1e15d, one("Float", 1e15d));
-        assertEquals(new BigDecimal("0.0000010"), one("Float", 1e-6d));
+        assertEquals(1e-6d, one("Float", 1e-6d));
         assertEquals(9.99e-7d, one("Float", 9.99e-7d));
         assertEquals(Double.MAX_VALUE, one("Float", Double.MAX_VALUE));
     }
@@ -144,9 +146,9 @@ class PlanRunnerTest {
                 refusal(declared("ns", "Integer", 0, null), List.of(1L, "2")));
         Map<String, Object> none = new HashMap<>();
         none.put("p", null);
-        assertEquals("Missing external parameter(s): p:Integer[1]", assertThrows(IllegalArgumentException.class,
+        assertEquals("no value for the parameter(s) p:Integer[1]", assertThrows(IllegalArgumentException.class,
                 () -> PlanParameters.check(List.of(declared("p", "Integer", 1, 1)), none)).getMessage());
-        assertEquals("Missing external parameter(s): ns:Integer[1..*]",
+        assertEquals("no value for the parameter(s) ns:Integer[1..*]",
                 refusal(declared("ns", "Integer", 1, null), List.of()));
     }
 
@@ -156,7 +158,7 @@ class PlanRunnerTest {
         String all = assertThrows(IllegalArgumentException.class, () -> PlanParameters.check(List.of(
                 declared("a", "Integer", 1, 1), declared("b", "String", 1, null), declared("f", "Float", 1, 1),
                 declared("e", "s::E", 1, 1, "A", "B")), Map.of("f", Double.NaN, "e", "X"))).getMessage();
-        assertEquals("Missing external parameter(s): a:Integer[1], b:String[1..*]; " + invalid(
+        assertEquals("no value for the parameter(s) a:Integer[1], b:String[1..*]; " + invalid(
                 "parameter 'f' (Float[1]): NaN is not finite: no SQL literal stands for it",
                 "parameter 'e' (s::E[1]): \"X\" is not a value of s::E [A, B]"), all);
     }
@@ -314,7 +316,7 @@ class PlanRunnerTest {
                     new ExecutionPlan.Database.Declared(com.legend.planner.ConnectionPlans.of(connection), null),
                     List.of(), List.of(), null, TestBackends.settings(connection.databaseType()), null), com.legend.setup.LoadSteps.of(List.of(statement(
                             "CREATE TABLE K (A VARCHAR(10), B VARCHAR(10))"))).then(com.legend.setup.LoadSteps.blob(
-                            List.of("INSERT INTO K VALUES ('a', 'b')", "INSERT INTO K VALUES ('c', 'd'), ('e', 'f')"), "the data of the table K")));
+                            List.of("INSERT INTO K VALUES ('a', 'b')", "INSERT INTO K VALUES ('c', 'd'), ('e', 'f')"), "K")));
             long before = setupStatements();
             assertEquals("3", run(ExecutionPlan.reading(List.of(), cell(new ExecutionPlan.Sql(
                     "SELECT CAST(COUNT(*) AS VARCHAR(10)) FROM K", List.of(), target, null))), PlanSessions.shared()),
@@ -336,7 +338,7 @@ class PlanRunnerTest {
                         null), List.of(), List.of(), null, TestBackends.settings(b.type()), null);
                 com.legend.setup.LoadSteps steps = com.legend.setup.LoadSteps.blob(List.of(
                         "INSERT INTO WHOLE_K VALUES ('a')", "INSERT INTO NO_SUCH_TABLE VALUES ('b')"),
-                        "the data of the table WHOLE_K");
+                        "WHOLE_K");
                 ExecutionPlan.Load load = com.legend.planner.LoadPlanner.load(ExecutionPlan.Load.Cadence.AT_STEP,
                         steps, target);
                 Sessions.Session session = com.legend.testbackend.TestSessions.over(c);

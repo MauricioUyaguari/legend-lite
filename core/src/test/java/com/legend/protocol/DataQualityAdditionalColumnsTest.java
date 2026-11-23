@@ -102,7 +102,7 @@ class DataQualityAdditionalColumnsTest {
     @Test
     @DisplayName("parsed, written as JSON, read back and printed: the text as written")
     void printsBackAsWritten() {
-        assertEquals(PRINTED, ModelComposer.model(PmcdParser.parseDocument(PRINTED), PureComposer.Style.STANDARD));
+        assertEquals(PRINTED, ModelComposer.model(records(PmcdParser.parseDocument(PRINTED)), PureComposer.Style.STANDARD));
     }
 
     @Test
@@ -167,5 +167,11 @@ class DataQualityAdditionalColumnsTest {
             out.add(((Json.Str) x).value());
         }
         return out;
+    }
+
+    /** A document's JSON read back into its records, as {@code ModelComposer.model} prints them (its String overload
+     *  went upstream; the sync of studio-compatibility-dev with neema2's main, 2026-11-23). */
+    private static com.legend.protocol.Protocol.PureModelContextData records(String json) {
+        return com.legend.protocol.ModelReader.read((Json.Obj) Json.parse(json, DEEP));
     }
 }

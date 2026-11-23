@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class GroupByKeyOutsideScopeTest {
 
     /** One in-process database, for what does not depend on which (a compile, a refusal). */
-    private static final DatabaseType ANY = DataDeliveryMatrixTest.DATABASES.get(0);
+    private static final DatabaseType ANY = ProductReads.DATABASES.get(0);
 
     private static String model(DatabaseType db, String key, String firmColumns) {
         return """
@@ -83,7 +83,7 @@ class GroupByKeyOutsideScopeTest {
             "|g::Firm.all()->project(~[name: x|$x.name])->sort(~name->ascending())->from(g::M, g::RT)";
 
     private static List<List<String>> names(String model) throws Exception {
-        return DataDeliveryMatrixTest.read(new DataDeliveryMatrixTest.Data(model, QUERY, List.of(), "g::RT"), QUERY,
+        return ProductReads.read(new ProductReads.Data(model, QUERY, List.of(), "g::RT"), QUERY,
                 ANY);
     }
 
@@ -98,14 +98,14 @@ class GroupByKeyOutsideScopeTest {
     void theKeyGroupsByTheMainTablesColumn() throws Exception {
         // legend-engine: select "root".FIRST_NAME ... from PERSON as "root" group by "root".ID, "root".FIRST_NAME
         List<List<String>> engine = List.of(List.of("Jane"), List.of("John"), List.of("John"));
-        for (DatabaseType db : DataDeliveryMatrixTest.DATABASES) {
+        for (DatabaseType db : ProductReads.DATABASES) {
             String firmKey = firmKey(db);
-            assertEquals(engine, DataDeliveryMatrixTest.read(
-                    new DataDeliveryMatrixTest.Data(firmKey, QUERY, List.of(), "g::RT"), QUERY, db), db + "");
+            assertEquals(engine, ProductReads.read(
+                    new ProductReads.Data(firmKey, QUERY, List.of(), "g::RT"), QUERY, db), db + "");
             // the same rows as the key written on the main table
             String personKey = model(db, "PERSON.ID", "ID INTEGER PRIMARY KEY");
-            assertEquals(engine, DataDeliveryMatrixTest.read(
-                    new DataDeliveryMatrixTest.Data(personKey, QUERY, List.of(), "g::RT"), QUERY, db), db + "");
+            assertEquals(engine, ProductReads.read(
+                    new ProductReads.Data(personKey, QUERY, List.of(), "g::RT"), QUERY, db), db + "");
         }
     }
 

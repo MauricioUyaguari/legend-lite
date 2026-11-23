@@ -22,7 +22,7 @@ public final class EdgeCodec implements ExtensionCodec {
     private static final String TAG = "_type";
 
     /** The tags of the edge's records, one spelling for the writer and the reader. */
-    private enum Tag { effectTexts, refereeLoad }
+    private enum Tag { effectTexts, refereeLoad, appeal, engineText }
 
     @Override
     public @Nullable Map<String, Object> write(Extension e) {
@@ -48,6 +48,16 @@ public final class EdgeCodec implements ExtensionCodec {
                 o.put("steps", steps);
                 // the bundle inline, sorted by digest: the edge's data, one blob of inserts per table
                 o.put("content", new java.util.TreeMap<String, Object>(r.content()));
+            }
+            case Appeal a -> {
+                // an engine-text assert's appeal (step 8b; moved to the edge with C2, 2026-11-17)
+                o.put(TAG, Tag.appeal.name());
+                o.putAll(AppealJson.wAppeal(a));
+            }
+            case EngineTextJudgment j -> {
+                // an engine-text assert's comparison, held by its verdict's EdgeJudged judgment (census C3, 2026-11-17)
+                o.put(TAG, Tag.engineText.name());
+                o.putAll(AppealJson.wEngineTextJudgment(j));
             }
             default -> {
                 return null;   // another codec's record
@@ -84,6 +94,8 @@ public final class EdgeCodec implements ExtensionCodec {
                 yield new RefereeLoad(steps, com.legend.executionplan.PlanJson.contentOf(o.getObj("content"),
                         "the referee's copy of a load"));
             }
+            case appeal -> AppealJson.rAppeal(o);
+            case engineText -> AppealJson.rEngineTextJudgment(o);
         };
     }
 }

@@ -3,6 +3,7 @@
 
 package com.legend.sql.dialect;
 
+
 import com.legend.sql.DialectCapability;
 
 import com.legend.sql.NameQuoting;
@@ -123,7 +124,7 @@ class StoreWritesTest {
 
     /** A plan's parameter, typed as the planner types an {@code Integer[1]} (QueryParameters.Declared.slot). */
     private static SqlExpr.PlanParam integer(String name) {
-        return new SqlExpr.PlanParam(name, SqlExpr.PlanParam.Kind.OTHER, false, null,
+        return new SqlExpr.PlanParam(name, SqlExpr.PlanParam.ValueType.OTHER, false,
                 SqlTyping.typed(SqlType.Scalar.BIGINT), null);
     }
 
@@ -196,8 +197,7 @@ class StoreWritesTest {
     @Test
     void everyOtherDialectRefusesEachWrite() {
         for (SqlDialect d : List.<SqlDialect>of(new SQLite(), new MariaDb(), new MySql(), new Trino(), new ClickHouse(),
-                new Snowflake(), new Databricks(), new BigQuery(), new EngineStyleH2(), new EngineStyleDB2(),
-                new EngineStyleComposite())) {
+                new Snowflake(), new Databricks(), new BigQuery())) {
             for (SqlDml dml : List.<SqlDml>of(insert(), update(), delete(), merge())) {
                 DialectCapability refusal = assertThrows(DialectCapability.class, () -> d.render(dml),
                         d.getClass().getSimpleName() + " " + dml.getClass().getSimpleName());

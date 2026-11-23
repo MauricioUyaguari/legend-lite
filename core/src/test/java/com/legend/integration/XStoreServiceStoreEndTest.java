@@ -32,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class XStoreServiceStoreEndTest {
 
     /** One in-process database, for what does not depend on which (a compile, a refusal). */
-    private static final DatabaseType ANY = DataDeliveryMatrixTest.DATABASES.get(0);
+    private static final DatabaseType ANY = ProductReads.DATABASES.get(0);
 
     /** The ServiceStore side: the case's schema, binding and store, cut to what the sets read. */
     private static final String SERVICE_STORE = """
@@ -154,7 +154,7 @@ class XStoreServiceStoreEndTest {
     }
 
     private static List<List<String>> read(String model, String query, DatabaseType db) throws Exception {
-        return DataDeliveryMatrixTest.read(new DataDeliveryMatrixTest.Data(model, query, List.of(), "s::RT"), query,
+        return ProductReads.read(new ProductReads.Data(model, query, List.of(), "s::RT"), query,
                 db);
     }
 
@@ -168,7 +168,7 @@ class XStoreServiceStoreEndTest {
     @DisplayName("a relational Firm and a ServiceStore Person: compiles; navigating the association is refused by name")
     void navigatingTheAssociationIsRefused() throws Exception {
         assertEquals(List.of(), Compiler.compileErrors(hybrid(ANY)));
-        for (DatabaseType db : DataDeliveryMatrixTest.DATABASES) {
+        for (DatabaseType db : ProductReads.DATABASES) {
             // the Firm's own rows still answer
             String names = "|s::Firm.all()->project(~[name: f|$f.firmName])->from(s::M, s::RT)";
             assertEquals(List.of(List.of("Firm A")), read(hybrid(db), names, db), db + "");

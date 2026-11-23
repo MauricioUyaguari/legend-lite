@@ -163,7 +163,32 @@ class NativeCatalogGovernanceTest {
         // Emitted by the Cypher translator only, by FQN (GraphQL's mutations will be their second emitter). 29 -> 34.
         // 34 -> 35 (2026-10-22, merging main into the Cypher writes branch): main's quotient (+1, above) beside this
         // branch's stage and the five class writes (+6).
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 35,
+        // 35 -> 36 (2026-11-15, phase D's D1.3: the user's ruling of 2026-11-10, a TDS cell's toString answers the
+        // empty value where the cell is, relayed by the orchestrator 2026-11-15): cellText, the text of a TDS cell that
+        // TdsDesugars emits for $r.get('c')->toString() -- the product's empty, the compatibility edge's TDSNull, one
+        // node (SqlFn.CELL_TEXT) the two styles spell; it replaced the desugar's literal 'TDSNull' branch.
+        // 36 -> 37 (2026-11-16, W5 of docs/records/d-plan-2026-11-16.md, D1.1's last rows): typeRaise, a run-time type
+        // check's failure as the product's raise of its kind (CAST_IMPOSSIBLE, INSTANCE_NOT_OF) -- emitted by the
+        // resolver's chain dispatch and subtype reads, which raised legend-pure's sentence through fail until then;
+        // the sentence is the compatibility edge's (edge.PureMessages)
+        // 37 -> 38 (PR #118 fix round, 2026-11-18: N2, the in-body assert's default message chosen by the plan's style
+        // at lowering; the user's word "raise it"): assertFailedText, which LambdaBodies writes for fail's message where
+        // the assert gives none -- the product's lite sentence, the compatibility edge's legend-pure "Assert failed"
+        // 38 -> 40 (2026-11-19, A3 of the compatibility program, piece 1; the user's word in the translator session,
+        // "Yes to phases 1 guard move", and in the compat owner's session, "Okay approved", ~20:50): sqlSubstring and
+        // sqlPosition, SQL's SUBSTRING and POSITION by name, which the #Cypher, #SQL and #IQ islands and the
+        // ###Relational dynaFunctions write so that Pure's substring and indexOf can take Pure's meaning (register
+        // S130, S134); each the database's function verbatim, no SQL moved
+        // 40 -> 41 (2026-11-19, A3, the user's ruling ~21:10 "Yes to all three for substring", relayed by the compat
+        // owner; the reviewer's D-S1 as corrected, ca8ea4a5): substringAsGiven, the database's own SUBSTRING over the
+        // arguments as given -- lite-internal, its one producer the legend-engine door's engine rewrite, its one
+        // product claimer Scalars (spec's ClaimRegistryTest.substringAsGivensOneProductClaimerIsScalars)
+        // 41 -> 42 (2026-11-20, A3, the user's word ~07:45 "Okay 1", relayed by the compat owner): substrAsGiven, the
+        // database's own SUBSTRING over Pure's indexes corrected as legend-engine's processSubstr corrects them (start
+        // + 1 and end - start as SQL arithmetic, no range check) -- lite-internal, its one producer the legend-engine
+        // door's engine rewrite (for substr and the corrected substring), its one product claimer Scalars
+        // (ClaimRegistryTest.substrAsGivensOneProductClaimerIsScalars)
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 42,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering
@@ -267,4 +292,5 @@ class NativeCatalogGovernanceTest {
         u.addAll(b);
         return u;
     }
+
 }

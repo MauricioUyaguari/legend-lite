@@ -88,7 +88,26 @@ public final class PlanRunner {
         // the runtime wall (the deep audit, 2026-11-05): while the plan runs, nothing on this thread plans
         try (var run = com.legend.base.RunScope.enter(execution)) {
             streamRun(plan, values, sessions, sink, capacity);
+        } catch (com.legend.error.DataError e) {
+            throw declared(plan, e);
         }
+    }
+
+    /** {@code e} as it is where it names a raise {@code plan} declares, or none (phase D's option (D), 2026-11-15: a
+     *  host words a raise from the plan it runs, {@code PlanJson.raises}; exec, holding the plan, asks it the same): a
+     *  product raise of a kind no statement of the plan can send is refused by name -- the database reported what the
+     *  plan did not plan. Asked only on a failure. */
+    static com.legend.error.DataError declared(ExecutionPlan plan, com.legend.error.DataError e) {
+        com.legend.error.ErrorKind kind = e.kind();
+        if (kind == null || !kind.isRaise()) {
+            // a user's fail, the database's own failure, or a load's refused file (J25): no raise of the plan's
+            return e;
+        }
+        if (!com.legend.executionplan.PlanJson.raises(plan).contains(kind.name())) {
+            throw new IllegalStateException("the database raised " + kind.name() + ", which this plan does not declare"
+                    + " (it declares " + com.legend.executionplan.PlanJson.raises(plan) + ")", e);
+        }
+        return e;
     }
 
     private static void streamRun(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions,
@@ -644,8 +663,11 @@ public final class PlanRunner {
                         try {
                             seeding.execute(statement);
                         } catch (com.legend.error.DataError e) {
-                            // the database's own words, the data named (§3 rule 5): the plan names it
-                            throw new com.legend.error.DataError(s.of() + ": " + e.getMessage(), e);
+                            // the database's own words, the data named (§3 rule 5): the plan names its table, the
+                            // catalog words it (stage B's BE, 2026-11-21)
+                            throw new com.legend.error.DataError(com.legend.error.ErrorRecord.of(
+                                    com.legend.error.ErrorKind.LOAD_REFUSED, List.of(s.table(),
+                                            String.valueOf(e.getMessage()))), null, e);
                         }
                     }
                     answered.add(false);
@@ -823,7 +845,9 @@ public final class PlanRunner {
         }
         Map<String, PlanParameters.Checked> out = new HashMap<>(values);
         for (String execution : read) {
-            out.put(execution, new PlanParameters.One(ExecutionPlan.traceComment(com.legend.base.RunScope.execution())));
+            // the execution's id itself: legend-engine's comment around it is the edge's plan's (phase D's
+            // D1.4, 2026-11-15)
+            out.put(execution, new PlanParameters.One(com.legend.base.RunScope.execution().toString()));
         }
         return out;
     }
@@ -916,7 +940,7 @@ public final class PlanRunner {
                     String name = cellText(keys.get(k), p.name());
                     ExecutionPlan.Column c = p.column();
                     ExecutionPlan.Column a = new ExecutionPlan.Column(name, c.type(), c.multiplicity(),
-                            c.slot(), c.store(), c.precision());
+                            c.slot(), c.store(), c.precision(), c.decimal());
                     answered.add(a);
                     read.add(named(a, "_pk" + k + "_" + p.field()));
                 }
@@ -949,7 +973,8 @@ public final class PlanRunner {
 
     /** {@code c} read under the name its statement writes it: the column's facts, that name. */
     private static ExecutionPlan.Column named(ExecutionPlan.Column c, String name) {
-        return new ExecutionPlan.Column(name, c.type(), c.multiplicity(), c.slot(), c.store(), c.precision());
+        return new ExecutionPlan.Column(name, c.type(), c.multiplicity(), c.slot(), c.store(), c.precision(),
+                c.decimal());
     }
 
     private static String cellText(List<Object> key, int cell) {
@@ -1028,7 +1053,7 @@ public final class PlanRunner {
             bindOnce(sql, slot, checked, slots, values);
         }
         // the one text exec writes at run, the charter's A3(a): the plan's own text with each region once per key
-        return new Expanded(PlannedSql.fromPlan(out.toString()), slots, values);
+        return new Expanded(PlannedSql.fromPlan(out.toString(), sql.sites(), sql.statement()), slots, values);
     }
 
     private static void bindOnce(ExecutionPlan.Sql sql, int slot, Map<String, PlanParameters.Checked> checked,

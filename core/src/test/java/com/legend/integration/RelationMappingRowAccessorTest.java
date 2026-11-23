@@ -109,7 +109,7 @@ class RelationMappingRowAccessorTest {
                   }
                 )
                 ###Connection
-                """ + DataDeliveryMatrixTest.connection(db, "specification: LocalH2 { "
+                """ + ProductReads.connection(db, "specification: LocalH2 { "
                 + "testDataSetupCSV: 'default\\nPERSON\\nID,FIRSTNAME,last name,AGE,GENDER,FIRMID,STREET,FIRM\\n"
                 + "1,Ann,Lee,70,F,1,Main St,\"{\"\"legalName\"\":\"\"Acme\"\"}\"\\n"
                 + "2,Bob,,30,M,2,,\\n"
@@ -121,7 +121,7 @@ class RelationMappingRowAccessorTest {
     }
 
     private static List<List<String>> read(String model, String query, DatabaseType db) throws Exception {
-        return DataDeliveryMatrixTest.read(new DataDeliveryMatrixTest.Data(model, query, List.of(), "x::RT"), query,
+        return ProductReads.read(new ProductReads.Data(model, query, List.of(), "x::RT"), query,
                 db);
     }
 
@@ -136,7 +136,7 @@ class RelationMappingRowAccessorTest {
     @Test
     @DisplayName("every right-hand side over $row reads the row")
     void everyFormReadsTheRow() throws Exception {
-        for (DatabaseType db : DataDeliveryMatrixTest.DATABASES) {
+        for (DatabaseType db : ProductReads.DATABASES) {
             assertEquals(ROWS, read(model(db), QUERY, db), db + ": the $row bindings");
         }
     }
@@ -146,7 +146,7 @@ class RelationMappingRowAccessorTest {
     void anAssociationReadsTheRow() throws Exception {
         String query = "|x::Person.all()->project(~[f:x|$x.firstName, n:x|$x.firm.legalName])"
                 + "->sort(~f->ascending())->from(x::M, x::RT)";
-        for (DatabaseType db : DataDeliveryMatrixTest.DATABASES) {
+        for (DatabaseType db : ProductReads.DATABASES) {
             assertEquals(List.of(Arrays.asList("Ann", "Acme Corp"), Arrays.asList("Bob", "Beta LLC")),
                     read(model(db), query, db), db + ": the association through firmId: $row.FIRMID");
         }
@@ -155,7 +155,7 @@ class RelationMappingRowAccessorTest {
     @Test
     @DisplayName("the pin's $src binds the same row: the two spellings answer alike")
     void thePinsSrcStillBinds() throws Exception {
-        DatabaseType db = DataDeliveryMatrixTest.DATABASES.get(0);
+        DatabaseType db = ProductReads.DATABASES.get(0);
         // every accessor respelled as the pin spells it
         String src = model(db).replace("$row.", "$src.");
         assertTrue(!src.contains("$row") && src.contains("$src.FIRM"), src);

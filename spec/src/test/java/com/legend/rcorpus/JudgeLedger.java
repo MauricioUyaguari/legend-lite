@@ -11,13 +11,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /** THE PER-ASSERT VERDICT LEDGER (leg 3.3, docs/DATABASE_MODE_HOMEWORK_2026_09_18.md §4x):
  * one row per adjudicated assert of every test a corpus lane ran, in statement
- * order — {@code test, ordinal, assert family, verdict} — written by a lane run
+ * order — {@code test, ordinal, assert family, verdict}, and for a row that is not a PASS its failure's message
+ * (S0 of the presentation program, 2026-11-18) — written by a lane run
  * with {@code -Dlegend.judge.ledger=<path>} and read back by the differential
  * gate, which joins a HOST-mode ledger against a DATABASE-mode ledger on
  * {@code (test, ordinal)}. The verdict vocabulary: {@code PASS}; {@code FAIL};
@@ -31,18 +30,12 @@ final class JudgeLedger {
 
     static final String PROPERTY = "legend.judge.ledger";
 
-    record Row(String test, int ordinal, String family, String verdict) {
-    }
 
-    /** Where this pass writes its ledger: {@code -Dlegend.judge.ledger} when set (the host pass names its declared
-     *  output), else, in database mode, {@code judge-database.tsv} in the test's outputs; null for neither. */
+    /** Where this pass writes its ledger: {@code -Dlegend.judge.ledger} when set (the pass names its declared
+     *  output); null for none. */
     static Path path() {
         String path = System.getProperty(PROPERTY, "").trim();
-        if (!path.isEmpty()) {
-            return Path.of(path);
-        }
-        return "database".equalsIgnoreCase(System.getProperty("legend.judge.mode", "host"))
-                ? com.legend.testing.TestOutputs.file("judge-database.tsv") : null;
+        return path.isEmpty() ? null : Path.of(path);
     }
 
     /** An input file named by {@code -D<property>}: an exec path in a build action (the corpus passes, P2-15), a
@@ -80,7 +73,18 @@ final class JudgeLedger {
         requirePassed("host-judge", "legend.judge.host.verdict", "legend.judge.host.log");
     }
 
-    /** Append the test's verdict rows when this pass keeps a ledger ({@link #path}). */
+    /** The ids a message holds -- an execution id, a trace id -- masked, never a value. */
+    private static final java.util.regex.Pattern IDS = java.util.regex.Pattern.compile(
+            "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
+
+    /** A failure's message as one ledger cell: its ids masked, its tabs and line ends escaped. */
+    static String message(String reason) {
+        return IDS.matcher(reason).replaceAll("<id>").replace("\\", "\\\\").replace('\t', ' ').replace("\r", "")
+                .replace("\n", "\\n");
+    }
+
+    /** Append the test's verdict rows when this pass keeps a ledger ({@link #path}); a row that is not a PASS carries
+     *  the failure's message ({@link #message}). */
     static void record(String test, PureTestRunner.Result r) {
         Path path = path();
         if (path == null) {
@@ -93,7 +97,14 @@ final class JudgeLedger {
             // typed decline), never read from the failure text
             String verdict = v.pass() ? "PASS" : v.unjudgedReason() != null ? "UNJUDGED" : "FAIL";
             sb.append(test).append('\t').append(i++).append('\t').append(v.assertName())
-                    .append('\t').append(verdict).append('\n');
+                    .append('\t').append(verdict);
+            if (!v.pass()) {
+                // the failure's message, which the edge golden net pins (S0 of the presentation program, 2026-11-18,
+                // docs/records/presentation-program-design-2026-11-18.md §4 (d): until then a FAIL row carried none):
+                // the test's reason, whose first failure this row is (first-failure sequencing), ids masked
+                sb.append('\t').append(message(r.reason()));
+            }
+            sb.append('\n');
         }
         try {
             Files.writeString(path, sb, StandardCharsets.UTF_8,
@@ -103,97 +114,4 @@ final class JudgeLedger {
         }
     }
 
-    /** The ledger's rows keyed by {@code test\tordinal}, in file order. */
-    static Map<String, Row> read(Path path) throws IOException {
-        Map<String, Row> rows = new LinkedHashMap<>();
-        for (String line : Files.readAllLines(path, StandardCharsets.UTF_8)) {
-            if (line.isBlank()) {
-                continue;
-            }
-            String[] f = line.split("\t", -1);
-            if (f.length != 4) {
-                throw new IllegalStateException("judge ledger row: " + line);
-            }
-            rows.put(f[0] + "\t" + f[1], new Row(f[0], Integer.parseInt(f[1]), f[2], f[3]));
-        }
-        return rows;
-    }
-
-    /** The differential: the two ledgers joined per assert. A pair the
-     * REGISTERS name (the lane's database-mode lost / gained / accepted
-     * registers and the host lane's accepted roster — every row with its
-     * written reason) is a registered divergence; anything else is a bug in
-     * one mode. {@code hostOnly} / {@code databaseOnly}: an assert one judge
-     * adjudicated and the other never reached (the other's body raised
-     * first) — the same asymmetry as an unjudged shape, pinned the same way. */
-    record Differential(int agree, List<Row[]> disagree, List<Row> unjudged,
-            List<Row> hostOnly, List<Row> databaseOnly) {
-
-        /** Every test with a disagreement or a one-sided adjudication. */
-        java.util.Set<String> tests() {
-            java.util.Set<String> out = new java.util.HashSet<>();
-            disagree.forEach(pair -> out.add(pair[0].test()));
-            hostOnly.forEach(r -> out.add(r.test()));
-            databaseOnly.forEach(r -> out.add(r.test()));
-            return out;
-        }
-
-        List<String> unregistered(java.util.Set<String> registered) {
-            List<String> out = new ArrayList<>();
-            for (Row[] pair : disagree) {
-                if (!registered.contains(pair[0].test())) {
-                    out.add(pair[0].test() + " #" + pair[0].ordinal() + " " + pair[0].family()
-                            + ": host " + pair[0].verdict() + ", database " + pair[1].verdict());
-                }
-            }
-            for (Row r : hostOnly) {
-                if (!registered.contains(r.test())) {
-                    out.add(r.test() + " #" + r.ordinal() + " " + r.family()
-                            + ": host " + r.verdict() + ", database never reached it");
-                }
-            }
-            for (Row r : databaseOnly) {
-                if (!registered.contains(r.test())) {
-                    out.add(r.test() + " #" + r.ordinal() + " " + r.family()
-                            + ": database " + r.verdict() + ", host never reached it");
-                }
-            }
-            return out;
-        }
-
-        Map<String, Integer> unjudgedByFamily() {
-            Map<String, Integer> m = new LinkedHashMap<>();
-            for (Row r : unjudged) {
-                m.merge(r.family(), 1, Integer::sum);
-            }
-            return m;
-        }
-    }
-
-    static Differential diff(Map<String, Row> host, Map<String, Row> database) {
-        int agree = 0;
-        List<Row> hostOnly = new ArrayList<>();
-        List<Row> databaseOnly = new ArrayList<>();
-        List<Row[]> disagree = new ArrayList<>();
-        List<Row> unjudged = new ArrayList<>();
-        for (Map.Entry<String, Row> e : host.entrySet()) {
-            Row h = e.getValue();
-            Row d = database.get(e.getKey());
-            if (d == null) {
-                hostOnly.add(h);
-            } else if (d.verdict().equals("UNJUDGED")) {
-                unjudged.add(d);
-            } else if (h.verdict().equals(d.verdict())) {
-                agree++;
-            } else {
-                disagree.add(new Row[] {h, d});
-            }
-        }
-        for (Map.Entry<String, Row> e : database.entrySet()) {
-            if (!host.containsKey(e.getKey())) {
-                databaseOnly.add(e.getValue());
-            }
-        }
-        return new Differential(agree, disagree, unjudged, hostOnly, databaseOnly);
-    }
 }

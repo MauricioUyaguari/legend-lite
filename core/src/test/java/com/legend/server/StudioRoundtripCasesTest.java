@@ -13,12 +13,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class StudioRoundtripCasesTest {
 
     private static void roundtrips(String text) {
-        PureV1Api.Answer json = PureV1Api.grammarToJsonModel(text, false);
+        LiteV1Api.Answer json = com.legend.edge.PureV1Routes.grammarToJsonModel(text, false);
         assertEquals(200, json.status(), json.json());
-        PureV1Api.Answer printed = PureV1Api.jsonToGrammarModel(json.json(), "STANDARD");
+        LiteV1Api.Answer printed = com.legend.edge.PureV1Routes.jsonToGrammarModel(json.json(), "STANDARD");
         assertEquals(200, printed.status(), printed.json());
         assertEquals(text, printed.json());
-        PureV1Api.Answer compiled = PureV1Api.compile(json.json());
+        LiteV1Api.Answer compiled = com.legend.edge.PureV1Routes.compile(json.json());
         assertEquals("{\"message\":\"OK\",\"defects\":[]}", compiled.json());
         assertEquals(200, compiled.status());
     }

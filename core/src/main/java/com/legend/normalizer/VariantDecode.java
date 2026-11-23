@@ -57,8 +57,10 @@ final class VariantDecode {
     static ValueSpecification bound(String binding, String ownerFqn, String propertyName,
             ValueSpecification value, String mappingFqn, ModelBuilder model) {
         com.legend.model.GenericSectionElementDefinition b = model.findBinding(binding).orElseThrow(() ->
-                new ModelException(LegendCompileException.Phase.NORMALIZE, "Can't find binding '" + binding
-                        + "' (the Binding transformer of property '" + propertyName + "'); mapping=" + mappingFqn));
+                // the engine's words are the error kind's (CompileKind.MISSING; the sync with neema2's main,
+                // 2026-11-23), the mapping its element
+                new ModelException(LegendCompileException.Phase.NORMALIZE, com.legend.error.CompileKind.MISSING,
+                        java.util.List.of("binding", binding), mappingFqn));
         ClassDefinition owner = model.knowledge().hierarchyClass(ownerFqn).orElseThrow(() ->
                 new ModelException(LegendCompileException.Phase.NORMALIZE, "Binding transformer on property '"
                         + propertyName + "' of unknown class '" + ownerFqn + "'; mapping=" + mappingFqn));

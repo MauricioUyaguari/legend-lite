@@ -3,6 +3,7 @@
 
 package com.legend.sql.dialect;
 
+
 import com.legend.sql.DialectCapability;
 
 import com.legend.model.ConnectionDefinition.DatabaseType;
@@ -119,6 +120,8 @@ public final class CapabilityMatrix {
                 }
             }
         }
+        // the edge's own dialects, legend-engine's text printers (EngineStyle*, read from the edge's directory since
+        // 2026-11-13), went with that text (A2 of the compatibility program, 2026-11-19, CP-4)
         Files.createDirectories(out);
         for (Map.Entry<String, String> f : write(sources, dialects(sources.keySet()), reach).entrySet()) {
             Files.writeString(out.resolve(f.getKey()), f.getValue(), StandardCharsets.UTF_8);
@@ -128,7 +131,7 @@ public final class CapabilityMatrix {
     /**
      * The concrete dialects among {@code names}, in the matrix's order: each database type's dialect in the order
      * the database types are declared, then each dialect no database type names, after its nearest ancestor among them
-     * (EngineStyleDB2 after EngineStyleH2), the rest at the end by name.
+     * (a subclass after its parent), the rest at the end by name.
      */
     static List<Class<?>> dialects(Set<String> names) throws ClassNotFoundException {
         Set<Class<?>> concrete = new LinkedHashSet<>();

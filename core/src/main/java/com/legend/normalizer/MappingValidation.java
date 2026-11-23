@@ -52,8 +52,10 @@ final class MappingValidation {
         List<String> dupIds = closure.duplicateIds();
         if (!dupIds.isEmpty()) {
             throw new ModelException(LegendCompileException.Phase.MODEL,
-                    "Duplicated class mappings found with ID " + dupIds
-                    + " in mapping '" + md.qualifiedName() + "'", md.qualifiedName());
+                    com.legend.error.CompileKind.DUPLICATE_CLASS_MAPPING_IDS,
+                    // the first id alone, as legend-engine's MappingValidator names it (the BE audit 2's M1)
+                    List.of(dupIds.get(0).substring(0, dupIds.get(0).indexOf(" (")), md.qualifiedName()),
+                    md.qualifiedName());
         }
         Map<String, ModelException> invalid = new LinkedHashMap<>();
         for (ClassMapping cm : md.classMappings()) {
@@ -80,8 +82,8 @@ final class MappingValidation {
         }
         for (String member : u.memberSetIds()) {
             if (!ids.contains(member)) {
-                throw new ModelException(LegendCompileException.Phase.MAPPING, "Can't find class mapping '" + member
-                        + "' in mapping '" + r.raw().qualifiedName() + "'", r.raw().qualifiedName());
+                throw new ModelException(LegendCompileException.Phase.MAPPING, com.legend.error.CompileKind.MISSING_CLASS_MAPPING,
+                        java.util.List.of(member, r.raw().qualifiedName()), r.raw().qualifiedName());
             }
         }
     }

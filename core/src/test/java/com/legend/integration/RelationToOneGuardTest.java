@@ -32,8 +32,8 @@ class RelationToOneGuardTest {
     static void guarded(TestBackend backend) throws Exception {
         String model = backend.withStorelessRuntime("");
         try (Connection c = backend.open()) {
-            assertSizeError(model, c, "{|" + ROWS + "->toOne()}", 2);
-            assertSizeError(model, c, "{|" + ROWS + "->filter(r|$r.a > 5)->toOne()}", 0);
+            assertSizeError(backend, model, c, "{|" + ROWS + "->toOne()}", 2);
+            assertSizeError(backend, model, c, "{|" + ROWS + "->filter(r|$r.a > 5)->toOne()}", 0);
             Lean.Result one = Lean.run(model, "{|" + ROWS + "->filter(r|$r.a == 2)->toOne()}",
                     StorelessRuntime.RUNTIME, c);
             assertEquals(1, one.rowCount());
@@ -42,10 +42,25 @@ class RelationToOneGuardTest {
         }
     }
 
-    private static void assertSizeError(String model, Connection c, String query, int size) {
+    private static void assertSizeError(TestBackend backend, String model, Connection c, String query, int size)
+            throws Exception {
         Exception e = assertThrows(Exception.class, () -> Lean.run(model, query, StorelessRuntime.RUNTIME, c), query);
-        assertTrue(String.valueOf(e.getMessage()).contains("Cannot cast a collection of size " + size
-                + " to multiplicity [1]"), query + ": " + e.getMessage());
+        // the product's kind in legend-pure's sentence (the one catalog, stage B's BE, 2026-11-21), the size a row
+        // count only the database knows: <computed>, as the edge says it
+        assertTrue(String.valueOf(e.getMessage()).contains("Cannot cast a collection of size "
+                + com.legend.result.RaiseWords.COMPUTED + " to multiplicity [1]"), query + " (size " + size + "): "
+                + e.getMessage());
+        // the size, a row count only the database knows, prints <computed> in the edge's words, its formatter's after
+        // the run (stage B's B1, 2026-11-20; D1, register S389): until B1 the edge's SQL wrote the count (the D part 1
+        // audit's S5, 2026-11-15)
+        Exception edge;
+        try (Connection edgeSession = backend.open(com.legend.edge.PureText.UPSTREAM)) {   // the edge's database (the audit's J22)
+            edge = assertThrows(Exception.class, () -> com.legend.testing.EdgeProgram.last(model, query,
+                    StorelessRuntime.RUNTIME, edgeSession, com.legend.testing.EdgeProgram.upstream()), query);
+        }
+        String words = com.legend.edge.PureMessages.compile(edge);
+        assertTrue(words.contains("Cannot cast a collection of size " + com.legend.result.RaiseWords.COMPUTED + " to"),
+                query + " (size " + size + ") at the edge: " + words);
     }
 
     @Test

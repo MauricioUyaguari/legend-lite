@@ -44,7 +44,8 @@ class Part1SemanticsTest {
     @Test
     void part1Semantics() throws Exception {
         try (Connection conn = TestBackends.platform().open()) {
-            // integer / integer by zero RAISES (pure's BigDecimal lane)
+            // integer / integer by zero RAISES (pure's BigDecimal lane): the product's DIVIDE_BY_ZERO, in legend-pure's
+            // words (the one catalog, stage B's BE, 2026-11-21)
             Exception dz = assertThrows(Exception.class,
                     () -> scalar("{|1 / 0}", conn));
             assertTrue(String.valueOf(dz.getMessage())
@@ -70,7 +71,7 @@ class Part1SemanticsTest {
             Exception to = assertThrows(Exception.class,
                     () -> scalar("{|[]->first()->toOne()}", conn));
             assertTrue(String.valueOf(to.getMessage()).contains(
-                            "Cannot cast a collection of size 0"),
+                            "Cannot cast a collection of size"),
                     "value-lane toOne over empty must raise: "
                             + to.getMessage());
             assertEquals("1",

@@ -16,14 +16,31 @@ import com.legend.error.LegendCompileException;
  * reads either: a database's position rides a cause the database raised at run, and planning sends no statement).
  *
  * @param kind           the exception's class, from the closed list
- * @param message        its message, as {@code getMessage()} answered (null where it had none)
+ * @param message        its message, as {@code getMessage()} answered (null where it had none, and where its record
+ *                       says it: {@link #message()} is then the record's sentence -- stage B's BE, 2026-11-21: no
+ *                       prose in the test plan for an error that has its record)
  * @param phase          a {@link Kind#MODEL} error's phase; null for every other kind (each has its one phase)
  * @param element        the model element a compile error names ({@link Kind#MODEL}, {@link Kind#MAPPING_RESOLUTION})
  * @param unjudgedReason an {@link Kind#ASSERT_FAILED} that is an UNJUDGED decline: why
- * @param where          the planning site that recorded it, for debugging (ruled 2026-11-08): stable across runs
+ * @param record         the error as data ({@link com.legend.error.ErrorRecord}: its code, values, position and frames;
+ *                       stage B's BE, 2026-11-21, the one error model): what every audience words it from; null where
+ *                       its site states none yet
  */
 public record Failure(Kind kind, @Nullable String message, LegendCompileException.@Nullable Phase phase,
-        @Nullable String element, @Nullable String unjudgedReason, String where) {
+        @Nullable String element, @Nullable String unjudgedReason, com.legend.error.@Nullable ErrorRecord record) {
+    // (where: the planning site that recorded it, a Java method's name in the plan -- gone 2026-11-21, stage B's
+    // BE-P: no Java in the test plan; a planning failure names its site in the exception that refuses it instead)
+
+    /** The kinds of failure a record rides: the classes that are lite's errors with a record (stage B's BE,
+     *  2026-11-21; one list for the record's check and {@link Failures#of}'s reading of it). */
+    static final java.util.Set<Kind> RECORDED = java.util.Set.of(Kind.MODEL, Kind.TYPE_INFERENCE, Kind.RESOLUTION,
+            Kind.MAPPING_RESOLUTION, Kind.SCHEMA_INVARIANT, Kind.ISLAND_SYNTAX, Kind.DATA);
+
+    /** A failure with no record, its message its own. */
+    public Failure(Kind kind, @Nullable String message, LegendCompileException.@Nullable Phase phase,
+            @Nullable String element, @Nullable String unjudgedReason) {
+        this(kind, message, phase, element, unjudgedReason, null);
+    }
 
     public Failure {
         if ((phase != null) != (kind == Kind.MODEL)) {
@@ -35,10 +52,43 @@ public record Failure(Kind kind, @Nullable String message, LegendCompileExceptio
         if (unjudgedReason != null && kind != Kind.ASSERT_FAILED) {
             throw new IllegalArgumentException("an unjudged reason is a failed assert's alone: " + kind);
         }
+        if (record != null) {
+            if (!RECORDED.contains(kind)) {
+                throw new IllegalArgumentException("a failure's record is a lite error's alone: " + kind);
+            }
+            // a data failure's record a run's code, a compile failure's a compile's: Failures.raised rebuilds the error
+            // its kind names over the record (the BE audit 5's L6, 2026-11-21)
+            if ((kind == Kind.DATA) != (record.code() instanceof com.legend.error.ErrorKind)
+                    || kind != Kind.DATA && !(record.code() instanceof com.legend.error.CompileKind)) {
+                throw new IllegalArgumentException("a " + kind + " failure's record is not its kind's code: "
+                        + record.code().qualified());
+            }
+            if (message != null) {
+                throw new IllegalArgumentException("a failure with its record carries no message of its own (the"
+                        + " record's sentence is its message): " + kind);
+            }
+        }
+    }
+
+    /** Its message: its record's sentence in lite's words where it has a record, else its own. */
+    @Override
+    public @Nullable String message() {
+        return record != null ? record.sentence() : message;
+    }
+
+    /** The message it carries of its own (null where its record says it). */
+    public @Nullable String ownMessage() {
+        return message;
     }
 
     /** The exception classes a planning failure is raised as, each by its class's name: a closed list (a class not
      *  listed fails the planning that recorded it, by name -- never a stand-in class). */
+    /** An exception that names its own kind (a planning library's class this records layer cannot name). */
+    public interface Kinded {
+        /** The kind this exception is recorded as. */
+        Kind failureKind();
+    }
+
     public enum Kind {
         NOT_IMPLEMENTED("com.legend.error.NotImplementedException"),
         /** a statement's own SQL text refused (a NotImplementedException of its own class; the C4 final fix round's
@@ -56,36 +106,31 @@ public record Failure(Kind kind, @Nullable String message, LegendCompileExceptio
         ASSERT_FAILED("com.legend.error.AssertFailed"),
         DIALECT_CAPABILITY("com.legend.sql.DialectCapability"),
         /** the engine-text arm's refusal of a text side that is not a constant: answered at planning (the body is
-         *  refused by name), never raised at run */
-        NOT_A_CONSTANT("com.legend.testplan.SqlTextVerdicts$NotAConstant"),
-        ILLEGAL_STATE("java.lang.IllegalStateException"),
-        ILLEGAL_ARGUMENT("java.lang.IllegalArgumentException"),
-        UNSUPPORTED_OPERATION("java.lang.UnsupportedOperationException"),
-        ARITHMETIC("java.lang.ArithmeticException"),
-        NUMBER_FORMAT("java.lang.NumberFormatException"),
-        NULL_POINTER("java.lang.NullPointerException"),
-        CLASS_CAST("java.lang.ClassCastException"),
-        INDEX_OUT_OF_BOUNDS("java.lang.IndexOutOfBoundsException"),
-        // the slice 1 audit (2026-11-08): raisable by planning's folds and reads, raised as they were
-        NO_SUCH_ELEMENT("java.util.NoSuchElementException"),
-        DATE_TIME("java.time.DateTimeException"),
-        UNCHECKED_IO("java.io.UncheckedIOException");
+         *  refused by name), never raised at run. Named by the exception itself ({@link Kinded}), never by its class's
+         *  name (the class moved twice; census C1, 2026-11-17: the edge's call failed on a stale name) */
+        NOT_A_CONSTANT(null);
+        // (Java's own exceptions -- IllegalStateException, IllegalArgumentException, UnsupportedOperationException,
+        // ArithmeticException, NumberFormatException, NullPointerException, ClassCastException,
+        // IndexOutOfBoundsException, NoSuchElementException, DateTimeException, UncheckedIOException -- gone 2026-11-21,
+        // stage B's BE-P: a defect of lite's fails loud, never a planned failure (the user's "defects def fail loud"
+        // and "D"), so no Java class rides the test plan)
 
-        private final String className;
+        /** The exception class's binary name; null where the exception names its kind itself ({@link Kinded}). */
+        private final @Nullable String className;
 
-        Kind(String className) {
+        Kind(@Nullable String className) {
             this.className = className;
         }
 
-        /** The exception class's binary name. */
-        public String className() {
+        /** The exception class's binary name, or null where the exception names its kind itself ({@link Kinded}). */
+        public @Nullable String className() {
             return className;
         }
 
         /** The kind whose class is named {@code className}, or null where none is. */
         public static @Nullable Kind named(String className) {
             for (Kind k : values()) {
-                if (k.className.equals(className)) {
+                if (className.equals(k.className)) {
                     return k;
                 }
             }

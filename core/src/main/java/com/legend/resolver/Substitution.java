@@ -1725,7 +1725,7 @@ final class Substitution {
             // owner) replaces the lastIndexOf(":{") substring heuristic
             AsorRef.Ref ref = AsorRef.decode(rs.value());
             Object pkObj = ref == null ? null
-                    : com.legend.sql.Json.parseOne(ref.pkJson());
+                    : com.legend.sql.Json.parse(ref.pkJson());
             if (!(pkObj instanceof Map<?, ?> pkMap) || pkMap.isEmpty()) {
                 throw new NotImplementedException("objectReferenceIn pk"
                         + " segment did not decode: " + rs.value());
@@ -2049,6 +2049,7 @@ final class Substitution {
                             m.mapper().parameters().get(0), m.source()));
             // Literals: nothing to substitute.
             case TypedCString ignored -> n;
+            case com.legend.compiler.spec.typed.TypedNullCell ignored -> n;
             case TypedCInteger ignored -> n;
             case TypedCFloat ignored -> n;
             case TypedCDecimal ignored -> n;
@@ -2275,22 +2276,6 @@ final class Substitution {
                 new ExprType(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE));
     }
 
-    /** {@code fail(message)} standing in a VALUE position: pure raises
-     * here and so does the SQL. The node carries the position's type
-     * ({@code as}) — a raise has no value of its own, and the scalar
-     * rule casts the ERROR call to that carrier so the CASE keeps its
-     * type on every dialect. */
-    private TypedSpec raise(String message, ExprType as) {
-        TypedFunction fail = target.regs().failCallee();
-        if (fail == null) {
-            throw new NotImplementedException("run-time type dispatch in a"
-                    + " scope without a fail callee (nested registries)");
-        }
-        return new TypedNativeCall(fail, List.of(new TypedCString(
-                message, new ExprType(Type.Primitive.STRING,
-                        Multiplicity.Bounded.ONE))), as);
-    }
-
     private TypedSpec instanceOfHead(TypedNativeCall c) {
         String fqn = typeTargetFqn(c.args().get(1));
         if (fqn == null) {
@@ -2322,8 +2307,13 @@ final class Substitution {
         // leaf's list is the aggregation above this CASE): its stamp is
         // the scalar position, never the read's list multiplicity
         return new TypedIf(witnessTest(fqn), leaf,
-                Optional.of(raise("Cast exception: " + target.classFqn()
-                        + " cannot be cast to " + fqn,
+                // the two classes' names, as legend-pure's cast prints them (the BE audit 3's M3, 2026-11-21); the
+                // first the ROW's class (Cast.java prints the value's), which only the database knows: a row of a
+                // mapped subtype's root that fails the test is of a class its witnesses say, {@code <computed>} (S389;
+                // the BE audit 5's M1, 2026-11-21: until then the root's, "Vehicle" for a Bicycle row). The row holds
+                // the subtype tables its query reads, never every mapped subtype, so it cannot tell the root exact
+                Optional.of(ChainDispatch.typeRaise(com.legend.sql.RaiseKind.CAST_IMPOSSIBLE,
+                        com.legend.error.ErrorKind.COMPUTED, ChainDispatch.nameOf(fqn),
                         new ExprType(pa.info().type(), Multiplicity.Bounded.ONE))),
                 pa.info());
     }
@@ -2364,10 +2354,10 @@ final class Substitution {
             bodies.add(body);
         }
         if (elseArm == null) {
-            elseArm = raise("Match failure: no arm of ["
-                    + mr.arms().stream().map(a -> a.typeFqn())
-                            .collect(java.util.stream.Collectors.joining(", "))
-                    + "] accepts the row's run-time type", mr.info());
+            // a kind, the arms its operand (W7, 2026-11-16): legend-pure's sentence is the edge's
+            elseArm = ChainDispatch.typeRaise(com.legend.sql.RaiseKind.MATCH_FAILURE, "row",
+                    mr.arms().stream().map(a -> a.typeFqn()).collect(java.util.stream.Collectors.joining(", ")),
+                    mr.info());
         }
         TypedSpec out = elseArm;
         for (int i = conds.size() - 1; i >= 0; i--) {
@@ -2723,6 +2713,7 @@ final class Substitution {
             case com.legend.compiler.spec.typed.TypedSortBy sb ->
                     sb.mapChildren(k -> inlineParam(k, param, source));
             case TypedCString ignored -> n;
+            case com.legend.compiler.spec.typed.TypedNullCell ignored -> n;
             case TypedCInteger ignored -> n;
             case TypedCFloat ignored -> n;
             case TypedCDecimal ignored -> n;

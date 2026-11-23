@@ -54,7 +54,9 @@ final class DataLoads {
             com.legend.base.DataSize.requireSize(ref.namespace() == DataRef.Namespace.RESOURCE ? "/" + ref.name()
                     : ref.name(), bytes, sizeLimitMegabytes);
         } catch (com.legend.base.DataSize.TooLarge e) {
-            throw new DataError(String.valueOf(e.getMessage()), e);
+            // the refusal's record (J25, 2026-11-17; the one error model, 2026-11-21): legend-pure's sentence of it is
+            // the edge's
+            throw DataError.fileTooLarge(e.path(), e.bytes(), e.characters(), e.limitMegabytes(), e);
         }
         try {
             java.nio.file.Path staged = java.nio.file.Files.createTempFile("legend-load-", ".csv");

@@ -108,6 +108,24 @@ import org.w3c.dom.Element;
  */
 public final class JUnitMain {
 
+    /** Where a run writes one line per test (id, status, the message's first line), when set: the edge golden
+     *  net's outcomes (2026-11-16). */
+    private static final String OUTCOMES = System.getProperty("legend.junit.outcomes");
+
+    private static final java.util.Map<String, String> OUTCOME_LINES =
+            java.util.Collections.synchronizedMap(new java.util.TreeMap<>());
+
+    /** Where a run writes one line per test by its FULL name (its parent's display name, {@code ::}, its own), its
+     *  status and its message (newlines written as {@code \\n}, at most {@link #FULL_MESSAGE_MAX} characters), when
+     *  set: the ENGINE lane's outcomes (H7, 2026-11-19), which join legend-engine's manifests by that name. The short
+     *  name {@link #OUTCOMES} keys by is not unique across a PCT suite's packages. */
+    private static final String FULL_OUTCOMES = System.getProperty("legend.junit.outcomes.full");
+
+    private static final int FULL_MESSAGE_MAX = 600;
+
+    private static final java.util.Map<String, String> FULL_OUTCOME_LINES =
+            java.util.Collections.synchronizedMap(new java.util.TreeMap<>());
+
     private JUnitMain() {}
 
     public static void main(String[] args) throws Exception {
@@ -222,7 +240,15 @@ public final class JUnitMain {
         // A test the filter EXCLUDED that runs anyway: an engine refused the exclusion
         // (vintage cannot filter a nested/TestSetup-wrapped JUnit 3 suite).
         AtomicLong overrun = new AtomicLong();
+        // the running plan, for a test's parent (its full name, FULL_OUTCOMES)
+        java.util.concurrent.atomic.AtomicReference<org.junit.platform.launcher.TestPlan> running =
+                new java.util.concurrent.atomic.AtomicReference<>();
         TestExecutionListener guard = new TestExecutionListener() {
+            @Override
+            public void testPlanExecutionStarted(org.junit.platform.launcher.TestPlan plan) {
+                running.set(plan);
+            }
+
             @Override
             public void executionStarted(TestIdentifier id) {
                 if (id.isTest() && bazel.excluded.contains(id.getUniqueIdObject())) {
@@ -230,6 +256,11 @@ public final class JUnitMain {
                 }
                 // the running test, as its class and method: what a diagnostic names it by (the walk's door listed
                 // tests by it until the walk was deleted, 2026-11-06); a sequential run's one current test
+                // every test's name, whatever its engine (the edge golden net keys its lines by it, 2026-11-16: a
+                // vintage suite's tests have no method source)
+                if (id.isTest()) {
+                    System.setProperty("legend.test.id", id.getLegacyReportingName());
+                }
                 if (id.isTest() && id.getSource().orElse(null)
                         instanceof MethodSource ms) {
                     System.setProperty("legend.test.current", ms.getClassName() + "#" + ms.getMethodName());
@@ -241,10 +272,37 @@ public final class JUnitMain {
                     org.junit.platform.engine.TestExecutionResult result) {
                 if (id.isTest()) {
                     System.clearProperty("legend.test.current");
+                    System.clearProperty("legend.test.id");
+                    if (OUTCOMES != null) {
+                        String message = result.getThrowable().map(t -> String.valueOf(t.getMessage())).orElse("");
+                        int nl = message.indexOf('\n');
+                        OUTCOME_LINES.put(id.getLegacyReportingName(), result.getStatus() + "\t"
+                                + (nl < 0 ? message : message.substring(0, nl)).replace('\t', ' ').replace('\r', ' '));
+                    }
+                    if (FULL_OUTCOMES != null) {
+                        String message = result.getThrowable().map(t -> String.valueOf(t.getMessage())).orElse("")
+                                .replace("\\", "\\\\").replace("\n", "\\n").replace('\t', ' ').replace('\r', ' ');
+                        org.junit.platform.launcher.TestPlan plan = running.get();
+                        String parent = plan == null ? "" : plan.getParent(id).map(TestIdentifier::getDisplayName)
+                                .map(p -> p + "::").orElse("");
+                        FULL_OUTCOME_LINES.put(parent + id.getDisplayName(), result.getStatus() + "\t"
+                                + (message.length() > FULL_MESSAGE_MAX ? message.substring(0, FULL_MESSAGE_MAX) : message));
+                    }
                 }
             }
         };
         launcher.execute(request, summary, legacy, guard);
+        if (OUTCOMES != null) {
+            // the edge golden net's outcomes (2026-11-16): one line per test, its id, status and message, sorted
+            StringBuilder lines = new StringBuilder();
+            OUTCOME_LINES.forEach((k, v) -> lines.append(k).append('\t').append(v).append('\n'));
+            java.nio.file.Files.writeString(java.nio.file.Path.of(OUTCOMES), lines);
+        }
+        if (FULL_OUTCOMES != null) {
+            StringBuilder lines = new StringBuilder();
+            FULL_OUTCOME_LINES.forEach((k, v) -> lines.append(k).append('\t').append(v).append('\n'));
+            java.nio.file.Files.writeString(java.nio.file.Path.of(FULL_OUTCOMES), lines);
+        }
 
         TestExecutionSummary result = summary.getSummary();
         StringWriter text = new StringWriter();

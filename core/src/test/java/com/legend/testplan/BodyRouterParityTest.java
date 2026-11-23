@@ -3,6 +3,8 @@
 
 package com.legend.testplan;
 
+import com.legend.edge.RawLedger;
+
 import com.legend.Compiler;
 import com.legend.ExecuteOptions;
 import com.legend.Execution;
@@ -15,7 +17,7 @@ import com.legend.exec.StatementOrigin;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.result.Batch;
 import com.legend.result.ResultSink;
-import com.legend.sql.dialect.RawSqlBoundary;
+import com.legend.edge.RawSqlBoundary;
 import com.legend.testbackend.StorelessRuntime;
 import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
@@ -53,6 +55,21 @@ class BodyRouterParityTest {
 
     private interface Body {
         void run() throws Exception;
+    }
+
+    /** Whether {@code body} runs in the edge's style: under the compatibility rules, or binding legend-engine's plan
+     *  handle or result envelope, which only the edge plans. */
+    private static boolean edgeStyle(String body) {
+        return COMPAT.get() || body.contains("meta::pure::executionPlan::executionPlan(")
+                || body.contains("meta::legend::executeLegendQuery(");
+    }
+
+    /** The judge {@code body} runs under for the asked {@code mode}: in the edge's style the host's alone (rule 4 of the
+     *  compatibility program's rules of record; A4 of the compatibility program, stage A ratified by the user
+     *  2026-11-19: until A4 the asked judge on both roads), the asked one in the product's. */
+    private static com.legend.testplan.PlanningOptions.JudgeMode judgeFor(String body,
+            com.legend.testplan.PlanningOptions.JudgeMode mode) {
+        return edgeStyle(body) ? com.legend.testplan.PlanningOptions.JudgeMode.HOST : mode;
     }
 
     private static void inCompatibilityMode(Body body) throws Exception {
@@ -215,11 +232,9 @@ class BodyRouterParityTest {
                 "{| assertEquals(1, 1); let x = 2; assertEquals($x, 2); 'done';}",
                 "{| assertTdsEquivalent(#TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 0),"
                         + " #TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 0), 0.1);}",
-                // the rendered text: one side a grid's text (the CSV form, toCSV, is the relational tests' own
-                // function, absent from this model: the corpora measure it)
-                "{| assertEquals('a,b\\n1,x\\n2,y\\n', #TDS\na,b\n1,x\n2,y\n#->toString());}",
-                // a side whose planning raises (a computed bound the lowering refuses by name): raised at its turn,
-                // after the assert before it ran and reported, counted under its family
+                // a side whose planning raises (a computed bound the lowering refuses by name): the body refused at
+                // planning, nothing run (the user's ruling of 2026-11-21, "D": until then raised at its turn, after the
+                // assert before it ran; REFUSED_AT_PLANNING)
                 "{| assertEquals(1, 1); assertEquals(#TDS\na\n1\n2\n#->filter(r|$r.a > 1),"
                         + " #TDS\na\n1\n2\n#->limit('1'->parseInteger()));}",
                 // the M8a audit's E: a type identity decided with no side (held, failed with its message), the TDS
@@ -229,9 +244,16 @@ class BodyRouterParityTest {
                 "{| assertTdsEquivalent(#TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 0),"
                         + " #TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 0), 0.1, 1.0);}",
                 "{| assert([1, 2]->forAll(e|[1, 2, 3]->contains($e)));}",
-                "{| assertFalse([1, 4]->forAll(e|[1, 2]->contains($e)));}",
-                "{| assertEquals('a,b\\n1,x\\n2,y\\n', #TDS\na,b\n2,y\n1,x\n#->sort(~a->ascending())->toString());}")) {
+                "{| assertFalse([1, 4]->forAll(e|[1, 2]->contains($e)));}")) {
             assertParity(backend, body, "select 1");
+        }
+        // the rendered text: one side a grid's text, legend-pure's and the compatibility edge's alone (the product
+        // refuses a relation's text by name: phase D's D1.3, 2026-11-15), so under the compatibility rules (the CSV
+        // form, toCSV, is the relational tests' own function, absent from this model: the corpora measure it)
+        for (String body : List.of(
+                "{| assertEquals('a,b\\n1,x\\n2,y\\n', #TDS\na,b\n1,x\n2,y\n#->toString());}",
+                "{| assertEquals('a,b\\n1,x\\n2,y\\n', #TDS\na,b\n2,y\n1,x\n#->sort(~a->ascending())->toString());}")) {
+            inCompatibilityMode(() -> assertParity(backend, body, "select 1"));
         }
     }
 
@@ -362,17 +384,21 @@ class BodyRouterParityTest {
         assertNull(BodyClass.of(typed(ctx, body), RT), body);
     }
 
-    /** A side whose planning raises is a PLANNED RAISE at its assert's turn (R14; M6's audit, S1): the assert before it
-     *  ran and reported, the body fails with the planning's own error, on both roads. */
+    /** A side lite cannot plan REFUSES THE BODY AT PLANNING, whether or not the run would reach it (the user's ruling
+     *  of 2026-11-21, "D"; until then a planned raise at its assert's turn, R14, M6's audit S1): nothing runs, the
+     *  assert before it reports nothing, the body fails with the refusal itself, under every judge (the BE audit's
+     *  findings 1 and 8, 2026-11-21: the database judge's root stayed open, an unrelated IllegalStateException in the
+     *  refusal's place, and this test ran the host judge alone). */
     @ParameterizedTest
     @MethodSource("backends")
-    void aSidesPlanningRaisesAtItsTurn(TestBackend backend) throws Exception {
+    void aSideLiteCannotPlanRefusesTheBodyAtPlanning(TestBackend backend) throws Exception {
         String body = "{| assertEquals(1, 1); assertEquals(#TDS\na\n1\n2\n#->filter(r|$r.a > 1),"
                 + " #TDS\na\n1\n2\n#->limit('1'->parseInteger()));}";
         ModelContext ctx = Compiler.compileModel(model(backend, false));
-        Run run = run(backend, ctx, body, "select 1");
-        assertEquals(true, run.outcome.startsWith("NotImplementedException: dynamic slicing bounds"), run.outcome);
-        assertEquals(1, run.verdicts.size(), "the first assert reported, the second raised: " + run.verdicts);
+        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.values()) {
+            assertRefusedAtPlanning(run(backend, ctx, RT, body, "select 1", List.of(), mode),
+                    "NotImplementedException: dynamic slicing bounds", mode.toString());
+        }
     }
 
     /** A store, a mapping and a runtime with NO test data on {@code backend} (a seeded runtime is left on the walk):
@@ -517,7 +543,7 @@ class BodyRouterParityTest {
             for (String body : List.of(
                     "{| assertSize(" + EXECUTE + ".activities, 1);}",
                     "{| let r = " + EXECUTE + "; assert($r.activities->at(0)->cast(@meta::relational::mapping::"
-                            + "RelationalActivity).comment->toOne()->startsWith('-- \"executionTraceID\"'));}",
+                            + "RelationalActivity).comment->toOne()->length() == 36);}",
                     "{| let r = " + EXECUTE + "; assertSize($r.values.rows, 2);}",
                     // two executions (the execution id as upstream, 2026-11-12): their stamps in the plan, no id
                     "{| let a = " + EXECUTE + "; let b = " + EXECUTE + "; assert($a.activities->at(0)" + COMMENT
@@ -534,14 +560,38 @@ class BodyRouterParityTest {
         }
     }
 
+    /**
+     * THE PR1 RE-REVIEW'S B9 (2026-11-16, a risk the reviewer could not verify): a frame let's ROWS and its ACTIVITY read
+     * by the asserts after it, now that frames do not run at their let -- the rows by a side of its own (a grid read, the
+     * root the fused row cannot carry) and the activity by a fused root. Under every judge the body ends as the host
+     * judge's run ends, its verdicts told alike.
+     */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void aFramesRowsAndActivityReadAfterItsLetAgreeUnderEveryJudge(TestBackend backend) throws Exception {
+        ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        String body = "{| let r = " + EXECUTE + "; assertSize($r.values.rows, 2); assert($r.activities->at(0)"
+                // the product road's comment is the run's id itself (D1.4; legend-engine's comment around it, the edge's)
+                + COMMENT + "->length() == 36);}";
+        Run host = run(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS,
+                PlanningOptions.JudgeMode.HOST);
+        assertEquals("ok", host.outcome(), backend + " HOST: " + host.verdicts());
+        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.values()) {
+            Run r = run(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS, mode);
+            assertEquals(host.outcome(), r.outcome(), backend + " " + mode);
+            assertEquals(host.verdicts(), r.verdicts(), backend + " " + mode + ": the verdicts told");
+        }
+    }
+
     /** An activity's comment, read by the body: its execution's trace comment. */
     private static final String COMMENT = "->cast(@meta::relational::mapping::RelationalActivity).comment->toOne()";
 
-    /** Every execution-trace comment an answer holds, in order. */
+    /** Every execution id an answer holds, in order (an activity's comment is the run's id itself on the product road;
+     *  legend-engine's comment around it, the edge's: D1.4, 2026-11-15). */
     private static List<String> traceIds(String answer) {
         List<String> out = new ArrayList<>();
         java.util.regex.Matcher m = java.util.regex.Pattern.compile(
-                "executionTraceID\\\\?\" : \\\\?\"([0-9a-f-]{36})").matcher(answer);
+                "([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})").matcher(answer);
         while (m.find()) {
             out.add(m.group(1));
         }
@@ -656,7 +706,7 @@ class BodyRouterParityTest {
                 "{| let r = " + EXECUTE + "; assertEquals(1, x::TFirm.all(%2020-06-01)->from(x::M, x::RT)->size());"
                         + " assertSize($r.values.rows, 2);}",
                 "{| let r = " + EXECUTE + "; let cm = $r.activities->at(0)->cast(@meta::relational::mapping::"
-                        + "RelationalActivity).comment->toOne(); assert($cm->startsWith('-- \"executionTraceID\"'));}",
+                        + "RelationalActivity).comment->toOne(); assert($cm->length() == 36);}",
                 // M9d: a frame over a business-temporal class, read by the asserts
                 "{| let r = " + EXECUTE_TEMPORAL + "; assertSize($r.values.rows, 1); assertEquals(['New'],"
                         + " $r.values.rows.values);}",
@@ -791,12 +841,13 @@ class BodyRouterParityTest {
                         + " assertEqWithinTolerance(1.0, 1.05, 0.1);}",
                 // an assert after a failing one: planned, judged after the first failure raised -- never
                 "{| assertEquals(3, 1 + 1); assertEquals(2, 1 + 1);}",
-                "{| assertEquals(1, 1); let x = 2; assertEquals($x, 2); 'done';}",
-                // a relation's toString against a literal: a string equality the database judges (not the rendered
-                // form the host reads: that is toCSV's, pinned walked below)
-                "{| assertEquals('a\n1\n', #TDS\na\n1\n#->toString());}")) {
+                "{| assertEquals(1, 1); let x = 2; assertEquals($x, 2); 'done';}")) {
             assertParity(backend, ctx, RT, body, "select 1", List.of(), com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
         }
+        // a relation's toString against a literal: a string equality the database judges (not the rendered form the
+        // host reads: that is toCSV's, pinned walked below) -- legend-pure's text, the edge's alone (D1.3, 2026-11-15)
+        inCompatibilityMode(() -> assertParity(backend, ctx, RT, "{| assertEquals('a\n1\n', #TDS\na\n1\n#->toString());}",
+                "select 1", List.of(), com.legend.testplan.PlanningOptions.JudgeMode.DATABASE));
     }
 
     /** M7: the assert shapes whose DATABASE arm reads a side on the host at the assert's turn ({@code assertEq} over
@@ -822,7 +873,7 @@ class BodyRouterParityTest {
                     com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
             // MOVED 2026-11-04 (the core program): the database planner plans these grid pairs -- names or widths
             // that differ decide false at planning, kinds that differ are spelled in the expected's
-            assertEquals(1, routed.moved, "the router moved the body: " + body);
+            assertMoved(backend, body, routed, 1, "the router moved the body: " + body + " -> " + routed.outcome);
             if (body.contains("#TDS")) {
                 assertTrue(routed.outcome.startsWith("AssertFailed"), "the grid owner's verdict: " + body + " -> "
                         + routed.outcome);
@@ -972,7 +1023,8 @@ class BodyRouterParityTest {
                 // the program has ONE target, the system database (M10a; systemRoutedPrograms' store-free case)
                 Run moved = run(backend, ctx, "x::RT", c.getKey(), "select count(*) from FIRM", FIRM_ROWS, mode);
                 assertTrue(moved.outcome.startsWith(c.getValue()), c.getKey() + " -> " + moved.outcome);
-                assertEquals(1, moved.moved, "the router moved the body: " + c.getKey());
+                assertMoved(backend, c.getKey(), moved, 1, "the router moved the body: " + c.getKey() + " -> "
+                        + moved.outcome);
             }
         }
     }
@@ -1299,8 +1351,8 @@ class BodyRouterParityTest {
                 "{| let r = " + EXECUTE + "; assertSize($r.activities, 1); assert($r.activities->at(0)->cast("
                         + "@meta::relational::mapping::RelationalActivity).sql->toOne()->startsWith('select'));}",
                 "{| let r = " + EXECUTE + "; assert($r.activities->at(0)->cast(@meta::relational::mapping::"
-                        + "RelationalActivity).comment->toOne()->startsWith('-- \"executionTraceID\"'));"
-                        + " assertEquals(62, $r.activities->at(0)->cast(@meta::relational::mapping::RelationalActivity)"
+                        + "RelationalActivity).comment->toOne()->length() == 36);"
+                        + " assertEquals(36, $r.activities->at(0)->cast(@meta::relational::mapping::RelationalActivity)"
                         + ".comment->toOne()->length());}",
                 "{| let p = meta::pure::executionPlan::executionPlan(|x::Firm.all()->project([f|$f.name], ['name']),"
                         + " x::M, x::RT.runtimeValue, []); assertNotEmpty($p.rootExecutionNode.executionNodes);}",
@@ -1344,7 +1396,7 @@ class BodyRouterParityTest {
         for (com.legend.testplan.PlanningOptions.JudgeMode mode : List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST, com.legend.testplan.PlanningOptions.JudgeMode.DATABASE)) {
             Run moved = run(backend, ctx, "x::RT", storeFree, "select count(*) from FIRM", FIRM_ROWS, mode);
             assertEquals("ok", moved.outcome, "outcome: " + storeFree);
-            assertEquals(1, moved.moved, "the router moved the body: " + storeFree);
+            assertMoved(backend, storeFree, moved, 1, "the router moved the body: " + storeFree + " -> " + moved.outcome);
         }
         // a user store's read beside a system read, each in a statement of its own (per-statement routing,
         // 2026-11-03): the system statement on the graph's system database, the user's on the body's, one program --
@@ -1399,14 +1451,14 @@ class BodyRouterParityTest {
         String producer = "meta::relational::functions::sqlstring::toSQLString(|x::Firm.all()->project([f|$f.name],"
                 + " ['name']), x::M, meta::relational::runtime::DatabaseType.H2, [])";
         String ours = productText(backend, ctx, "x::RT", "{| " + producer + ";}", FIRM_ROWS);
-        assertTrue(ours.startsWith("select "), ours);
+        assertTrue(ours.startsWith("SELECT "), ours);   // lite's own text since A2 (2026-11-19, CP-4)
         String frameSql = text(run(backend, ctx, "x::RT", "{| let r = " + EXECUTE
                 + "; meta::relational::mapping::sqlRemoveFormatting($r);}", "select count(*) from FIRM",
                 FIRM_ROWS, com.legend.testplan.PlanningOptions.JudgeMode.HOST));
-        assertTrue(frameSql.startsWith("select "), frameSql);
+        assertTrue(frameSql.startsWith("SELECT "), frameSql);   // lite's own text since A2 (2026-11-19, CP-4)
         // another spelling of the same query (the rows agree), and the same spelling over other rows
-        String sameRows = "SELECT" + ours.substring("select".length());
-        String otherRows = ours + " where \"root\".ID = 1";
+        String sameRows = respelled(ours);
+        String otherRows = overOtherRows(ours);
         int oursLeg = StatementOrigin.REFEREE_OURS.ordinal();
         for (com.legend.testplan.PlanningOptions.JudgeMode mode : List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST, com.legend.testplan.PlanningOptions.JudgeMode.DATABASE)) {
             // the text equal: the verdict, no replay (the user's ruling of 2026-09-21) -- pinned absolutely, so a
@@ -1442,13 +1494,14 @@ class BodyRouterParityTest {
             // a frame's executed SQL against another spelling of it: the appeal reads the frame's rows (MATCH)
             Run frameMatched = assertParity(backend, ctx, "x::RT", "{| let r = " + EXECUTE
                     + "; meta::relational::functions::asserts::assertSameSQL('"
-                    + pure("SELECT" + frameSql.substring("select".length())) + "', $r);}",
+                    + pure(respelled(frameSql)) + "', $r);}",
                     "select count(*) from FIRM", FIRM_ROWS, mode);
             assertEquals("ok", frameMatched.outcome, "the frame's rows agree: the appeal holds");
             assertTrue(frameMatched.verdicts.toString().contains("refereed MATCH"), frameMatched.verdicts.toString());
             // a dialect with a renderer and no referee database (DB2): a DECLINE decided before the texts are
             // compared, counted; the text is the contract
-            String renderedElsewhere = producer.replace("DatabaseType.H2", "DatabaseType.DB2");
+            // since A2 (2026-11-19, CP-4) Snowflake is that dialect (lite's own text; until then DB2, legend-engine's)
+            String renderedElsewhere = producer.replace("DatabaseType.H2", "DatabaseType.Snowflake");
             Run declinedFails = assertParity(backend, ctx, "x::RT", "{| assertEquals('x', " + renderedElsewhere + ");}",
                     "select count(*) from FIRM", FIRM_ROWS, mode);
             assertTrue(declinedFails.outcome.startsWith("AssertFailed")
@@ -1458,14 +1511,16 @@ class BodyRouterParityTest {
             // the body moves under either judge -- the host plans the raise at the assert's turn; the database judge
             // closes a segment of walls alone as a decided step of its own (2026-11-03, the database judge on par
             // with the host: until then its static gate left this body to the walk, the one road difference)
-            String foreign = "{| assertEquals('x', " + producer.replace("DatabaseType.H2", "DatabaseType.Snowflake")
+            // since A2 (2026-11-19, CP-4) DB2 is that dialect: lite has none for it, refused by name (until then
+            // Snowflake, which legend-engine's printers did not spell)
+            String foreign = "{| assertEquals('x', " + producer.replace("DatabaseType.H2", "DatabaseType.DB2")
                     + ");}";
             assertParity(backend, ctx, "x::RT", foreign, "select count(*) from FIRM", FIRM_ROWS, mode);
         }
         // the decline under BOTH judges at once (the slice 3 invariant audit, 2026-11-08): told exactly once -- by the
         // host's half (its database half tells no listener), before the text decides
         Run agreed = assertParity(backend, ctx, "x::RT", "{| assertEquals('x', "
-                + producer.replace("DatabaseType.H2", "DatabaseType.DB2") + ");}", "select count(*) from FIRM",
+                + producer.replace("DatabaseType.H2", "DatabaseType.Snowflake") + ");}", "select count(*) from FIRM",
                 FIRM_ROWS, com.legend.testplan.PlanningOptions.JudgeMode.BOTH);
         assertTrue(agreed.outcome.startsWith("AssertFailed"), agreed.outcome);
         assertEquals(1, declinedOnce(agreed), agreed.verdicts.toString());
@@ -1480,9 +1535,27 @@ class BodyRouterParityTest {
                 agreedMatch.verdicts.toString());
     }
 
-    /** How many times a run told the DB2 decline of its one engine-text assert. */
+    /** How many times a run told the foreign-dialect decline of its one engine-text assert (Snowflake's since A2,
+     *  2026-11-19: lite's own text, no referee database; DB2's until then). */
     private static long declinedOnce(Run run) {
-        return run.verdicts.stream().filter(v -> v.contains("declined foreign-dialect:DB2")).count();
+        return run.verdicts.stream().filter(v -> v.contains("declined foreign-dialect:Snowflake")).count();
+    }
+
+    /** Another spelling of {@code sql}, the same rows: its leading keyword's case flipped (lite's {@code SELECT} since
+     *  A2, 2026-11-19, CP-4; legend-engine's {@code select} until then). */
+    private static String respelled(String sql) {
+        return (sql.startsWith("SELECT") ? "select" : "SELECT") + sql.substring("select".length());
+    }
+
+    /** {@code sql} over other rows: its root relation filtered to one key. */
+    private static String overOtherRows(String sql) {
+        return sql + " where " + rootAlias(sql) + ".ID = 1";
+    }
+
+    /** The root relation's alias in {@code sql}: lite's {@code "t0"} since A2 (2026-11-19), legend-engine's
+     *  {@code "root"} until then. */
+    private static String rootAlias(String sql) {
+        return sql.contains("\"root\"") ? "\"root\"" : "\"t0\"";
     }
 
     /** M10c item 12: a GRAPH FRAME -- a frame whose query is a graph fetch and its serialize -- planned on the program
@@ -1609,8 +1682,8 @@ class BodyRouterParityTest {
         String ours = productText(backend, ctx, "x::RT", "{| " + producer + ";}", FIRM_ROWS);
         String equal = "{| assertEquals('M', x::M.name); assertEquals('" + pure(ours) + "', " + producer + ");}";
         String appealed = "{| assertEquals('M', x::M.name); assertEquals('"
-                + pure("SELECT" + ours.substring("select".length())) + "', " + producer + ");}";
-        String diverged = "{| assertEquals('M', x::M.name); assertEquals('" + pure(ours + " where \"root\".ID = 1")
+                + pure(respelled(ours)) + "', " + producer + ");}";
+        String diverged = "{| assertEquals('M', x::M.name); assertEquals('" + pure(overOtherRows(ours))
                 + "', " + producer + ");}";
         // our text a side the step reads (item 8: a plan handle's SQL through a navigation over the plan's rows) -- the
         // datetime plan tests' shape: the side planned on the program's environment names the program's one target
@@ -1623,9 +1696,9 @@ class BodyRouterParityTest {
         String deferred = "{| assertEquals('M', x::M.name); " + planLet + " assertEquals('" + pure(planSql) + "', "
                 + nav + ");}";
         String deferredAppealed = "{| assertEquals('M', x::M.name); " + planLet + " assertEquals('"
-                + pure("SELECT" + planSql.substring("select".length())) + "', " + nav + ");}";
+                + pure(respelled(planSql)) + "', " + nav + ");}";
         String deferredDiverged = "{| assertEquals('M', x::M.name); " + planLet + " assertEquals('"
-                + pure(planSql + " where \"root\".ID = 1") + "', " + nav + ");}";
+                + pure(overOtherRows(planSql)) + "', " + nav + ");}";
         for (var c : List.of(java.util.Map.entry(equal, "ok"), java.util.Map.entry(appealed, "ok"),
                 java.util.Map.entry(diverged, "AssertFailed"), java.util.Map.entry(deferred, "ok"),
                 java.util.Map.entry(deferredAppealed, "ok"), java.util.Map.entry(deferredDiverged, "AssertFailed"))) {
@@ -1634,7 +1707,7 @@ class BodyRouterParityTest {
             Run moved = run(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS,
                     com.legend.testplan.PlanningOptions.JudgeMode.HOST);
             assertTrue(moved.outcome.startsWith(c.getValue()), body + " -> " + moved.outcome);
-            assertEquals(1, moved.moved, "the router moved the body: " + body);
+            assertMoved(backend, body, moved, 1, "the router moved the body: " + body + " -> " + moved.outcome);
         }
         for (String a : List.of(appealed, deferredAppealed)) {
             Run matched = run(backend, ctx, "x::RT", a, "select count(*) from FIRM", FIRM_ROWS,
@@ -1668,13 +1741,13 @@ class BodyRouterParityTest {
                 + ".sqlQuery->toOne()";
         String planSql = text(run(backend, ctx, "x::RT", "{| " + planLet + " " + nav + ";}",
                 "select count(*) from FIRM", FIRM_ROWS, com.legend.testplan.PlanningOptions.JudgeMode.HOST));
-        assertTrue(planSql.startsWith("select "), planSql);
+        assertTrue(planSql.startsWith("SELECT "), planSql);   // lite's own text since A2 (2026-11-19, CP-4)
         String producer = "meta::relational::functions::sqlstring::toSQLString(|x::Firm.all()->project([f|$f.name],"
                 + " ['name']), x::M, meta::relational::runtime::DatabaseType.H2, [])";
         String ours = productText(backend, ctx, "x::RT", "{| " + producer + ";}", FIRM_ROWS);
-        String replaced = ours.replace("\"root\"", "\"r\"");
+        String replaced = ours.replace(rootAlias(ours), "\"r\"");
         assertTrue(!ours.equals(replaced), ours);
-        String replace = "->replace('\"root\"', '\"r\"')";
+        String replace = "->replace('" + rootAlias(ours) + "', '\"r\"')";
         int oursLeg = StatementOrigin.REFEREE_OURS.ordinal();
         // the text equal: the verdict at the step over the side the step ran, no appeal
         for (String equal : List.of(
@@ -1701,12 +1774,12 @@ class BodyRouterParityTest {
         assertEquals("ok", matched.outcome, "the rows agree: the appeal holds");
         assertTrue(matched.verdicts.toString().contains("refereed MATCH"), matched.verdicts.toString());
         Run planMatched = assertParity(backend, ctx, "x::RT", "{| " + planLet + " assertEquals('"
-                + pure("SELECT" + planSql.substring("select".length())) + "', " + nav + ");}",
+                + pure(respelled(planSql)) + "', " + nav + ");}",
                 "select count(*) from FIRM", FIRM_ROWS, com.legend.testplan.PlanningOptions.JudgeMode.HOST);
         assertEquals("ok", planMatched.outcome, "the plan's rows agree: the appeal holds");
         // the rows differing: the appeal fails the assert with the arm's own message, our text the step's
         Run diverged = assertParity(backend, ctx, "x::RT", "{| " + planLet + " assertEquals('"
-                + pure(planSql + " where \"root\".ID = 1") + "', " + nav + ");}", "select count(*) from FIRM",
+                + pure(overOtherRows(planSql)) + "', " + nav + ");}", "select count(*) from FIRM",
                 FIRM_ROWS, com.legend.testplan.PlanningOptions.JudgeMode.HOST);
         assertTrue(diverged.outcome.startsWith("AssertFailed") && diverged.outcome.contains("diverged"),
                 diverged.outcome);
@@ -1739,7 +1812,7 @@ class BodyRouterParityTest {
         assertParityTextInRow(backend, ctx, "x::RT", "{| assertEquals('" + pure(ours) + "', " + producer + replace
                 + ");}", "select count(*) from FIRM", FIRM_ROWS);
         assertParityTextInRow(backend, ctx, "x::RT", "{| " + planLet + " assertEquals('"
-                + pure(planSql + " where \"root\".ID = 1") + "', " + nav + ");}", "select count(*) from FIRM",
+                + pure(overOtherRows(planSql)) + "', " + nav + ");}", "select count(*) from FIRM",
                 FIRM_ROWS);
     }
 
@@ -1775,7 +1848,7 @@ class BodyRouterParityTest {
      *  extent as a body's answer: BodyClass.answered). */
     private static String productText(TestBackend backend, ModelContext ctx, String runtime, String query,
             List<String> setup) throws Exception {
-        try (Connection c = backend.open()) {
+        try (Connection c = backend.open(com.legend.edge.PureText.UPSTREAM)) {   // the edge's style runs it (J22)
             try (Statement st = c.createStatement()) {
                 for (String sql : setup) {
                     st.execute(sql);
@@ -1783,22 +1856,28 @@ class BodyRouterParityTest {
             }
             Capture capture = new Capture();
             Sessions.Session session = Sessions.borrowed(c);
+            // the engine-text natives' answer is the compatibility edge's (S309, RULED by the user 2026-11-14: the
+            // product refuses it by name), so the golden is read through the edge's style
             Execution.run(typed(ctx, query), runtime, com.legend.exec.SessionSource.given(session),
                     com.legend.exec.PlanSessions.of(session), com.legend.exec.ProductRun.Establish.AS_GIVEN,
-                    new com.legend.result.Output.Rows(capture));
-            return text(new Run("ok", List.of(), capture.toString(), "", 0, "", 0, List.of(), List.of(), "", 0));
+                    java.util.Set.of(), com.legend.edge.PureText.UPSTREAM, new com.legend.result.Output.Rows(capture),
+                    com.legend.result.Batcher.DEFAULT_CAPACITY);
+            return text(new Run("ok", null, List.of(), capture.toString(), "", 0, "", 0, List.of(), List.of(), "", 0));
         }
     }
 
     /** The text {@code expr} evaluates to after {@code lets} on the program road, read off the failure of an assert
-     *  that cannot hold ({@code assertEquals}'s {@code actual:} line, its representation unescaped): a golden the walk
+     *  that cannot hold (lite's sentence's actual, after its last {@code , got }, JSON-unquoted): a golden the walk
      *  read off a body answering {@code expr} alone until it was deleted (2026-11-06), where neither the router nor the
      *  product's door answers that value as a body's answer. */
     private static String actualOf(TestBackend backend, ModelContext ctx, String runtime, String lets, String expr,
             List<String> setup) throws Exception {
         Run run = run(backend, ctx, runtime, "{| " + lets + " assertEquals('no such text', " + expr + ");}",
                 "select count(*) from FIRM", setup, com.legend.testplan.PlanningOptions.JudgeMode.HOST);
-        String marker = "\nactual:   ";
+        // lite's own sentence (the user's judge model, 2026-11-17): the actual after its last ", got ", JSON-quoted; on
+        // the edge's run (a body binding legend-engine's plan handle) legend-pure's, after "\nactual:   ", %r-quoted
+        // (census C1, 2026-11-17: the edge's style and its hook write legend-pure's words together)
+        String marker = run.outcome.contains("\nactual:   ") ? "\nactual:   " : ", got ";
         int from = run.outcome.lastIndexOf(marker);
         assertTrue(run.outcome.startsWith("AssertFailed") && from >= 0, "an assert's failure naming its actual: "
                 + run.outcome);
@@ -1806,7 +1885,9 @@ class BodyRouterParityTest {
         if (shown.startsWith("[") && shown.endsWith("]")) {
             shown = shown.substring(1, shown.length() - 1);   // a collection of the one text
         }
-        assertTrue(shown.length() >= 2 && shown.startsWith("'") && shown.endsWith("'"), "one text: " + shown);
+        char quote = marker.equals(", got ") ? '"' : '\'';
+        assertTrue(shown.length() >= 2 && shown.charAt(0) == quote && shown.charAt(shown.length() - 1) == quote,
+                "one text: " + shown);
         StringBuilder text = new StringBuilder();
         for (int i = 1; i < shown.length() - 1; i++) {
             char ch = shown.charAt(i);
@@ -1843,9 +1924,11 @@ class BodyRouterParityTest {
     @MethodSource("backends")
     void theActivityCommentIsTheRunsStamp(TestBackend backend) throws Exception {
         ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        // the comment is the run's id itself, 36 characters (D1.4, 2026-11-15: legend-engine's comment around it,
+        // 62, is the edge's)
         String body = "{| let r = " + EXECUTE + "; assert($r.activities->at(0)->cast(@meta::relational::mapping::"
-                + "RelationalActivity).comment->toOne()->startsWith('-- \"executionTraceID\"'));"
-                + " assertEquals(62, $r.activities->at(0)->cast(@meta::relational::mapping::RelationalActivity)"
+                + "RelationalActivity).comment->toOne()->contains('-'));"
+                + " assertEquals(36, $r.activities->at(0)->cast(@meta::relational::mapping::RelationalActivity)"
                 + ".comment->toOne()->length());}";
         Run moved = assertParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS,
                 com.legend.testplan.PlanningOptions.JudgeMode.HOST);
@@ -1872,13 +1955,10 @@ class BodyRouterParityTest {
             assertEquals(BodyClass.ASSERT_PROGRAM, BodyClass.of(typed(ctx, body), RT, true), body);
             Run routed = run(backend, ctx, body, "select 1");
             // MOVED 2026-11-04 (the core program): each runs on the program road -- the nested quantification unrolled
-            // recursively by the host's planner; an assert no arm plans raises at its turn (HostAsserts: NoRule's "not
-            // as a scalar"), counted as a planned raise
-            assertEquals(1, routed.moved, "the router moved the body: " + body);
-            if (!routed.outcome.equals("ok")) {
-                assertEquals("{not-attempted (pre-arm) raised=1}", routed.census,
-                        "the program road's census of a planned raise: " + body);
-            }
+            // recursively by the host's planner. An assert no arm plans (HostAsserts: NoRule's "not as a scalar")
+            // refuses the body at planning, nothing run and no raise planned (the user's ruling of 2026-11-21, "D";
+            // until then it raised at its turn, counted as a planned raise)
+            assertMoved(backend, body, routed, 1, "the router moved the body: " + body + " -> " + routed.outcome);
         }
     }
 
@@ -1925,8 +2005,89 @@ class BodyRouterParityTest {
         assertNotNull(BodyClass.of(unreadAsStatements(typed(ctx, body)), runtime, true),
                 "the body is a moved class's under one judge: " + body);
         Run moved = run(backend, ctx, runtime, body, check, setup, mode);
-        assertEquals(1, moved.moved, "the router moved the body: " + body);
+        // BOTH plans the body once per judge, each alone (isolated BOTH, 2026-11-17); the edge's style one judge (A4)
+        assertMoved(backend, body, moved, judgeFor(body, mode) == com.legend.testplan.PlanningOptions.JudgeMode.BOTH ? 2 : 1,
+                "the router moved the body: " + body + " -> " + moved.outcome);
         return moved;
+    }
+
+    /** A body refused at planning on a database (null: on every one): its text holds {@code body}, its refusal opens
+     *  {@code refusal}. */
+    private record Refused(@com.legend.base.Nullable String database, String body, String refusal) {
+    }
+
+    /** THE BODIES THIS SUITE EXPECTS REFUSED AT PLANNING, each by name with its refusal (the user's ruling of
+     *  2026-11-21, "D": a body lite cannot fully plan is refused before it runs; until then each was planned, the
+     *  refusal raised at its turn). Stated, so a body a regression refuses fails, and so does one of these planned
+     *  (the BE audit's finding 8, 2026-11-21: the check took any refusal). H2's are its dialect's list gaps. */
+    private static final String LIST_GET = "DialectCapability: LIST_GET reached a dialect without a list encoding";
+    private static final String UNNEST = "DialectCapability: UNNEST reached a dialect without an unnest placement";
+
+    private static final List<Refused> REFUSED_AT_PLANNING = List.of(
+            // H2's dialect holds no list encoding: a class instance compared reads its properties as a list
+            new Refused("H2", "{| assertEq(^x::Lit(value=1), ^x::Lit(value=1));}", LIST_GET),
+            new Refused("H2", "{| assertEquals(^x::Call(name='f', args=[^x::Lit(value=1), ^x::Lit(value=2)]), ^x::Call(name='f', args=[^x::Lit(value=1), ^x::Lit(value=2)]));}", LIST_GET),
+            new Refused("H2", "{| assertEquals(^x::Call(name='f', args=[^x::Lit(value=1)]), ^x::Call(name='f', args=[^x::Lit(value=2)]));}", LIST_GET),
+            new Refused("H2", "{| assertEquals(^x::Lit(value=1), ^x::Lit(value=1));}", LIST_GET),
+            new Refused("H2", "{| assertEquals(list([^x::Lit(value=1), 'x']), list([^x::Lit(value=1), 'x']));}", LIST_GET),
+            new Refused("H2", "{| assertNotEquals(^x::Lit(value=1), ^x::Lit(value=2));}", LIST_GET),
+            new Refused("H2", "{| assertSameElements([^x::Lit(value=1), ^x::Lit(value=2)], [^x::Lit(value=2), ^x::Lit(value=1)]);}", LIST_GET),
+            new Refused("H2", "{| let e = ^x::Key(k='c', v=3); x::assertSame($e, ^x::Key(k='c', v=4));}", LIST_GET),
+            new Refused("H2", "{| x::assertSame(^x::Key(k='a', v=1), ^x::Key(k='a', v=2));}", LIST_GET),
+            new Refused("H2", "{| x::assertSame(^x::Key(k='a', v=1), ^x::Key(k='b', v=1));}", LIST_GET),
+            // and no unnest placement: a literal collection mapped, quantified or sorted
+            new Refused("H2", "{| [1, -2]->forAll(x| assert($x > 0, 'positive'));}", UNNEST),
+            new Refused("H2", "{| [1, -2]->map(x| assert($x > 0, 'positive'));}", UNNEST),
+            new Refused("H2", "{| [1, 2, 3]->map(x| assert($x > 0, 'positive'));}", UNNEST),
+            new Refused("H2", "{| [1, 2, 3]->map(x|$x * 2);}", UNNEST),
+            new Refused("H2", "{| [1, 2]->forAll(x| assert($x > 0, 'positive'));}", UNNEST),
+            new Refused("H2", "{| [1, 2]->map(x| assertFalse($x > 5, 'small'));}", UNNEST),
+            new Refused("H2", "{| let n = 2; assertEquals(['a', 'b'], ['b', 'a']->sort()); assertEquals($n, 1 + 1);}", UNNEST),
+            // on every database: a computed slice bound, DB2's missing dialect, and a lite defect (an assert native
+            // reaching the scalar lowering), loud: each refused as itself
+            new Refused(null, "#->limit('1'->parseInteger())", "NotImplementedException: dynamic slicing bounds"),
+            new Refused(null, "DatabaseType.DB2", "NotImplementedException: SQL dialect for database type 'DB2' is not"
+                    + " implemented yet"),
+            new Refused(null, "{| assertInstanceOf(1, type(2));}", "IllegalStateException: no scalar lowering registered"
+                    + " for resolved overload 'meta::pure::functions::asserts::assertInstanceOf'"));
+
+    /** The rows of {@link #REFUSED_AT_PLANNING} a body met in this run. */
+    private static final java.util.Set<Refused> USED = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /** Every row of {@link #REFUSED_AT_PLANNING} names a body the class runs (the BE audit 2's nit 3, 2026-11-21: a
+     *  dead row passed in silence). Checked when the whole class ran, never under a filter or a shard. */
+    @org.junit.jupiter.api.AfterAll
+    static void everyRefusedRowIsABodysRow() {
+        String shards = System.getenv("TEST_TOTAL_SHARDS");
+        if (System.getenv("TESTBRIDGE_TEST_ONLY") != null || shards != null && !shards.equals("1")) {
+            return;
+        }
+        List<Refused> dead = REFUSED_AT_PLANNING.stream().filter(r -> !USED.contains(r)).toList();
+        assertTrue(dead.isEmpty(), "a row no body meets: " + dead);
+    }
+
+    /** {@code run} of {@code body} on {@code backend}: refused at planning as {@link #REFUSED_AT_PLANNING} says, else
+     *  PLANNED and moved {@code plans} times -- a body refused that the table does not name fails here (the BE audit's
+     *  finding 8, 2026-11-21: this accepted any refusal, so a body a regression refused at planning passed every
+     *  caller). */
+    private static void assertMoved(TestBackend backend, String body, Run run, int plans, String message) {
+        Refused expected = REFUSED_AT_PLANNING.stream().filter(r -> body.contains(r.body())
+                && (r.database() == null || r.database().equals(backend.type().name()))).findFirst().orElse(null);
+        if (expected != null) {
+            USED.add(expected);
+            assertRefusedAtPlanning(run, expected.refusal(), message);
+            return;
+        }
+        assertNull(run.refused(), "planned, never refused at planning: " + message + " (refused: " + run.refused() + ")");
+        assertEquals(plans, run.moved, message);
+    }
+
+    /** {@code run} refused at planning, its outcome the refusal itself and nothing run (the user's ruling of 2026-11-21,
+     *  "D"), the refusal starting {@code refusal}. */
+    private static void assertRefusedAtPlanning(Run run, String refusal, String message) {
+        assertEquals(run.refused(), run.outcome, "a body refused at planning runs nothing: " + message);
+        assertTrue(run.outcome.startsWith(refusal), message + ": " + run.outcome);
+        assertEquals(0, run.verdicts.size(), "nothing ran, no assert reported: " + message + " " + run.verdicts);
     }
 
     /** {@code body}, a MIXED body (a statement on the graph's system database beside the body's own: per-statement
@@ -1943,13 +2104,16 @@ class BodyRouterParityTest {
      *  registered after the run): the program binds the stamp as a parameter the run's check step binds (R17 C4; M9c)
      *  and never spells it. */
     private static final java.util.regex.Pattern STAMP_LITERAL =
-            java.util.regex.Pattern.compile("'-- \"executionTraceID\" : \"[0-9a-f-]{36}\"'");
+            // the run's id as a literal, bare (the product's comment since D1.4, 2026-11-15) or in legend-engine's comment
+            java.util.regex.Pattern.compile("'(-- \"executionTraceID\" : \")?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}"
+                    + "-[0-9a-f]{12}\"?'");
 
     /** @param statements the statements sent on the body's own connection, recorded there
      *  @param sent       every statement the run sent on any session, counted by exec by origin: {@link #allRecorded}
      *                    holds the recorded list whole (the follow-up audit, 2026-11-09: a system-routed body's
      *                    statements go to the system session, which the recording does not see) */
-    private record Run(String outcome, List<String> ledger, String answer, String origins, long effects,
+    /** {@code refused}: the body's refusal at planning (its outcome, nothing run, nothing moved), null where planned. */
+    private record Run(String outcome, @com.legend.base.Nullable String refused, List<String> ledger, String answer, String origins, long effects,
             String database, long moved, List<String> statements, List<String> verdicts, String census, long sent) {
     }
 
@@ -1987,26 +2151,46 @@ class BodyRouterParityTest {
 
     private static Run run(TestBackend backend, ModelContext ctx, String runtime, String body,
             String check, List<String> setup, com.legend.testplan.PlanningOptions.JudgeMode mode) throws Exception {
-        try (Connection c = backend.open()) {
+        // the session is the database the run's style plans for (the audit's J22, 2026-11-17: H2's settings are the
+        // style's): the edge's where the run below is handed the edge's style
+        boolean edgeStyle = edgeStyle(body);
+        try (Connection c = backend.open(edgeStyle ? com.legend.edge.PureText.UPSTREAM
+                : com.legend.database.PlanStyle.PRODUCT)) {
             try (Statement st = c.createStatement()) {
                 for (String sql : setup) {
                     st.execute(sql);
                 }
             }
             TypedQuery q = typed(ctx, body);
-            RawSqlBoundary.Recorder recorder = new RawSqlBoundary.Recorder();
+            RawLedger.Recorder recorder = new RawLedger.Recorder();
             // a run under the compatibility rules is handed the edge, which records the ledger; lite's own records
             // none (the plan-as-data design's step 8, 2026-11-08: an edge implies the compatibility rules)
             ExecuteOptions options = (COMPAT.get()
                     ? ExecuteOptions.recording(new com.legend.edge.CompatEdge(recorder,
                             com.legend.executionplan.DataStores.none()), com.legend.executionplan.DataStores.none())
-                    : ExecuteOptions.NONE).withJudgeMode(mode);
+                            .withStyle(com.legend.edge.PureText.UPSTREAM)
+                    // a body that binds a plan handle (executionPlan's value, legend-engine's) runs on the edge's
+                    // style: the product refuses it by name (D's hook fold, a4ac096b5, 2026-11-16); so does one whose
+                    // executeLegendQuery answers legend-engine's result envelope (Phase 6's B5, 2026-11-17: the
+                    // product refuses it at LOWER, ResultEnvelopeRefusalTest)
+                    : body.contains("meta::pure::executionPlan::executionPlan(")
+                            || body.contains("meta::legend::executeLegendQuery(")
+                            ? ExecuteOptions.NONE.withStyle(com.legend.edge.PureText.UPSTREAM)
+                            : ExecuteOptions.NONE).withJudgeMode(judgeFor(body, mode));
             Capture capture = new Capture();
             // every statement the body sends, recorded on the connection it is handed (2026-11-09: the product's
             // process-wide observer is gone)
             List<String> statements = new ArrayList<>();
             Sessions.Session session = Sessions.borrowed(com.legend.testbackend.RecordingConnection.wrap(c, statements));
-            com.legend.testexec.SqlReplayReferee referee = new StubReferee(c);
+            com.legend.edge.SqlReplayReferee referee = new StubReferee(c);
+            // a body lite cannot fully plan is refused at planning, nothing run (the user's ruling of 2026-11-21,
+            // "D"): the refusal itself, before the run's counters are read
+            String refused = null;
+            try {
+                TestExecution.planBody(q, runtime, options);
+            } catch (RuntimeException e) {
+                refused = e.getClass().getSimpleName() + ": " + e.getMessage();
+            }
             long[] before = StatementOrigin.snapshot();
             long effectsBefore = Census.count(Census.Key.EFFECTS_IN_SCRIPT);
             long movedBefore = Census.count(Census.Key.BODIES_MOVED);
@@ -2036,7 +2220,10 @@ class BodyRouterParityTest {
             java.util.SortedMap<String, Long> censusBefore = new java.util.TreeMap<>(
                     com.legend.diagnostics.VerdictCensus.sqlCensus());
             try {
-                TestExecution.runProgram(q, runtime, com.legend.exec.SessionSource.given(session), listener, referee, options,
+                // the run's hook goes with its style (census C1, the orchestrator's ruling of 2026-11-17)
+                TestExecution.runProgram(q, runtime, com.legend.exec.SessionSource.given(session), listener,
+                        options.planning().style() == com.legend.database.PlanStyle.PRODUCT
+                                ? com.legend.testexec.NoEdgeRun.NONE : com.legend.edge.AppealRun.with(referee), options,
                         new com.legend.result.Output.Rows(capture));
             } catch (RuntimeException e) {
                 outcome = e.getClass().getSimpleName() + ": " + e.getMessage();
@@ -2055,7 +2242,7 @@ class BodyRouterParityTest {
                     census.put(k, d);
                 }
             });
-            return new Run(outcome, ledger, capture.toString(), Arrays.toString(delta),
+            return new Run(outcome, refused, ledger, capture.toString(), Arrays.toString(delta),
                     Census.count(Census.Key.EFFECTS_IN_SCRIPT) - effectsBefore, database(c, check),
                     Census.count(Census.Key.BODIES_MOVED) - movedBefore, statements, verdicts, census.toString(),
                     Arrays.stream(delta).sum());
@@ -2079,7 +2266,7 @@ class BodyRouterParityTest {
      *  witnesses use run on every in-process backend), its rows against ours as sorted text multisets -- a test
      *  double of the SPI, not the harness's comparison policy (spec's {@code ReplayReferee}); a golden the connection
      *  refuses is a decline. The generator's fetch entries are not exercised by any witness here. */
-    private static final class StubReferee implements com.legend.testexec.SqlReplayReferee {
+    private static final class StubReferee implements com.legend.edge.SqlReplayReferee {
         private final Connection c;
 
         StubReferee(Connection c) {
@@ -2113,7 +2300,7 @@ class BodyRouterParityTest {
         @Override
         public RowVerdict verify(Sessions.Session session, String goldenSql, com.legend.testexecutionplan.TypedSide ours,
                 @com.legend.base.Nullable String mappingFqn, @com.legend.base.Nullable String rootClassFqn,
-                ReplayFacts facts, com.legend.testexecutionplan.Appeal.Enums enums) {
+                ReplayFacts facts, com.legend.edge.Appeal.Enums enums) {
             List<String> golden = new ArrayList<>();
             try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery(goldenSql)) {
                 int n = rs.getMetaData().getColumnCount();

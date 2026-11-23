@@ -83,7 +83,7 @@ class RelationMappingEmbeddedLinesTest {
                   }
                 )
                 ###Connection
-                """ + DataDeliveryMatrixTest.connection(db, "specification: LocalH2 { "
+                """ + ProductReads.connection(db, "specification: LocalH2 { "
                 + "testDataSetupCSV: 'default\\nPERSON\\nID,NAME,STREET,CITY\\n"
                 + "1,Ann,Main St,Boston\\n2,Bob,,\\n'; }; auth: DefaultH2;") + """
                 ###Runtime
@@ -95,7 +95,10 @@ class RelationMappingEmbeddedLinesTest {
     @DisplayName("parsed, written as JSON, read back and printed: the text as written")
     void printsBackAsWritten() {
         String json = PmcdParser.parseDocument(PRINTED);
-        assertEquals(PRINTED.stripTrailing(), ModelComposer.model(json, PureComposer.Style.STANDARD).stripTrailing());
+        // the document's JSON read back into its records, as ModelComposer.model prints them (its String overload went
+        // upstream; the sync of studio-compatibility-dev with neema2's main, 2026-11-23)
+        assertEquals(PRINTED.stripTrailing(), ModelComposer.model(com.legend.protocol.ModelReader.read(
+                (Json.Obj) Json.parse(json, new Json.Config(4096))), PureComposer.Style.STANDARD).stripTrailing());
     }
 
     @Test
@@ -132,9 +135,9 @@ class RelationMappingEmbeddedLinesTest {
                 + " g:x|$x.address.geo.city])->sort(~n->ascending())->from(x::M, x::RT)";
         List<List<String>> rows = List.of(Arrays.asList("Ann", "Main St", "Boston", "Boston"),
                 Arrays.asList("Bob", "null", "null", "null"));
-        for (DatabaseType db : DataDeliveryMatrixTest.DATABASES) {
-            List<List<String>> got = DataDeliveryMatrixTest.read(
-                    new DataDeliveryMatrixTest.Data(model(db), query, List.of(), "x::RT"), query, db);
+        for (DatabaseType db : ProductReads.DATABASES) {
+            List<List<String>> got = ProductReads.read(
+                    new ProductReads.Data(model(db), query, List.of(), "x::RT"), query, db);
             assertEquals(rows, got, db + ": the embedded block's lines");
         }
     }

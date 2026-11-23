@@ -27,6 +27,8 @@ import java.util.Objects;
  * @param tdsNullRoot      a VALUES side whose type is the TDS null cell's class
  * @param nullableRoot     a VALUES side whose type admits a null element (Any, a variant, the TDS null class)
  * @param listCarrier      a VALUES side whose type is a list carrier (a List instance holds its list as one value)
+ *                         (its refusal of no rows under a required bound is the run's record, worded by each audience
+ *                         after the run: stage B's B1, 2026-11-20, errors as records; until then {@code sizeWords}, worded at planning)
  */
 public record SideShape(Kind kind, String typeName, List<Column> columns, List<Column> templates, boolean oneCarrier,
         boolean scalar, long lower, String multiplicity, boolean tdsNullRoot, boolean nullableRoot,

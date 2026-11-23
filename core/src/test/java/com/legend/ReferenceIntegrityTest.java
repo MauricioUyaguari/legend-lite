@@ -44,19 +44,36 @@ class ReferenceIntegrityTest {
     /** {@code model} (after the base) compiled from its text and from its JSON (legend-engine's grammar reads it:
      *  asserted, so the second door is never skipped unseen; 2026-10-21, the independent audit): one error, naming
      *  {@code expected}. */
+    /** legend-engine's words of each error (the edge's, {@code PureMessages.compile}; D1.6, W7 of
+     *  docs/records/d-plan-2026-11-16.md): this test holds lite's refusals to upstream's, word for word. The product
+     *  says the same sentence of each kind since the one catalog ({@link #theProductWordsAKindAsUpstreamDoes}). */
+    private static final java.util.function.Function<Throwable, String> UPSTREAM = com.legend.edge.PureMessages::compile;
+
+    /** The product's sentence of a kind: legend-engine's, the one catalog's (stage B's BE, the user's ruling of
+     *  2026-11-21; lite's own words from D1.6 until then). */
+    @org.junit.jupiter.api.Test
+    void theProductWordsAKindAsUpstreamDoes() {
+        assertEquals(List.of("Can't find the profile 'a::NoProfile'"),
+                Compiler.compileErrors(BASE + "Class <<a::NoProfile.s>> a::B\n{\n}\n").stream()
+                        .map(m -> m.substring(m.indexOf(' ') + 1)).toList());
+        assertEquals(List.of("Can't find mapping 'a::NoMapping'"),
+                Compiler.compileErrors(BASE + "###Mapping\nMapping a::M\n(\n  include a::NoMapping\n)\n").stream()
+                        .map(m -> m.substring(m.indexOf(' ') + 1)).toList());
+    }
+
     private static void refused(String model, String expected) {
         String text = BASE + model;
         assertTrue(engineReads(text), "legend-engine's grammar reads it (else refusedAsText): " + model);
-        assertOneError(Compiler.compileErrors(text), expected, "the text");
-        assertOneError(Compiler.compileErrors(ModelReader.read(ProtocolEmitter.emit(PmcdParser.parseModel(text)))),
-                expected, "the JSON");
+        assertOneError(Compiler.compileErrors(text, UPSTREAM), expected, "the text");
+        assertOneError(Compiler.compileErrors(ModelReader.read(com.legend.json.Json.parse(ProtocolEmitter.emit(PmcdParser.parseModel(text)), new com.legend.json.Json.Config(4096))),
+                UPSTREAM), expected, "the JSON");
     }
 
     /** As {@link #refused}, for a construct only lite's dialect reads as written (a generic class, which
      *  legend-engine's grammar refuses; a function's constraints and a supertype's arguments, which it drops: rule A,
      *  S89), so only the text carries it. */
     private static void refusedAsText(String model, String expected) {
-        assertOneError(Compiler.compileErrors(BASE + model), expected, "the text");
+        assertOneError(Compiler.compileErrors(BASE + model, UPSTREAM), expected, "the text");
     }
 
     /** Compiled with no error from its text and from its JSON (asserted readable, as {@link #refused}). */
@@ -65,7 +82,7 @@ class ReferenceIntegrityTest {
         assertTrue(engineReads(text), "legend-engine's grammar reads it (else acceptedAsText): " + model);
         assertEquals(List.of(), Compiler.compileErrors(text), "the text");
         assertEquals(List.of(),
-                Compiler.compileErrors(ModelReader.read(ProtocolEmitter.emit(PmcdParser.parseModel(text)))),
+                Compiler.compileErrors(ModelReader.read(com.legend.json.Json.parse(ProtocolEmitter.emit(PmcdParser.parseModel(text)), new com.legend.json.Json.Config(4096)))),
                 "the JSON");
     }
 

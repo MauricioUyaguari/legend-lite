@@ -62,13 +62,13 @@ class ColSpecAnnotationsPrintTest {
     @DisplayName("parsed, written as JSON, read back and printed: the annotations where they were written")
     void printsBackAsWritten() {
         String json = PmcdParser.parseDocument(PRINTED);
-        assertEquals(PRINTED.stripTrailing(), ModelComposer.model(json, PureComposer.Style.STANDARD).stripTrailing());
+        assertEquals(PRINTED.stripTrailing(), ModelComposer.model(records(json), PureComposer.Style.STANDARD).stripTrailing());
     }
 
     @Test
     @DisplayName("in the pretty style too, and a doc tag stays an inline tagged value, never a documentation block")
     void prettyAndNoDocumentationBlock() {
-        String pretty = ModelComposer.model(PmcdParser.parseDocument(PRINTED), PureComposer.Style.PRETTY);
+        String pretty = ModelComposer.model(records(PmcdParser.parseDocument(PRINTED)), PureComposer.Style.PRETTY);
         assertTrue(pretty.contains("<<model::ColumnProfile.important>> {model::ColumnProfile.doc = 'derived column'}"
                 + " 'Display Name':"), pretty);
         assertTrue(pretty.contains("{model::ColumnProfile.doc = 'sum aggregate'} total:"), pretty);
@@ -106,5 +106,11 @@ class ColSpecAnnotationsPrintTest {
         ColSpec rebuilt = (ColSpec) spec.withChildren(children);
         assertEquals(spec.stereotypes(), rebuilt.stereotypes(), "the stereotypes kept");
         assertEquals(spec.taggedValues(), rebuilt.taggedValues(), "the tagged values kept");
+    }
+
+    /** A document's JSON read back into its records, as {@code ModelComposer.model} prints them (its String overload
+     *  went upstream; the sync of studio-compatibility-dev with neema2's main, 2026-11-23). */
+    private static com.legend.protocol.Protocol.PureModelContextData records(String json) {
+        return com.legend.protocol.ModelReader.read((Json.Obj) Json.parse(json, new Json.Config(4096)));
     }
 }
