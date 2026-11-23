@@ -5,10 +5,11 @@ outputs are in [`legend-studio-text-mode-homework/`](legend-studio-text-mode-hom
 
 **What changed (the user, 2026-11-23):** Legend Studio, not DataCube, is the first product to use legend-lite.
 The DataCube proposal ([`LEGEND_STUDIO_INTEGRATION_PROPOSAL_2026_11_18.md`](LEGEND_STUDIO_INTEGRATION_PROPOSAL_2026_11_18.md))
-and its pull requests are parked: the hook,
-[finos/legend-studio#5951](https://github.com/finos/legend-studio/pull/5951) (a draft), and the plugin,
-[neema2/legend-lite#120](https://github.com/neema2/legend-lite/pull/120). This plan reuses two parts of #120: the engine module as a package, and the client that
-answers `pure/v1` routes from a Web Worker.
+is parked, with its hook,
+[finos/legend-studio#5951](https://github.com/finos/legend-studio/pull/5951), a draft. Its plugin,
+[neema2/legend-lite#120](https://github.com/neema2/legend-lite/pull/120), waits too. This plan needs two parts of #120,
+which must land apart from its DataCube plugin (T11): the engine module as a package, and the client that answers
+`pure/v1` routes from a Web Worker.
 
 **What it builds on:**
 - [neema2/legend-lite#113](https://github.com/neema2/legend-lite/pull/113) (open): legend-studio's own grammar round-trip suite passes 133 of 133 on its branch, and
@@ -224,7 +225,7 @@ Each gap is in legend-lite unless the table says otherwise.
 | T8 | Error wording: legend-engine's words, or a ledgered difference | 4.3 | Phase 3 |
 | T9 | `###GraphQL`, and any other section the deployment's projects use | 4.1 | When a project needs it; T6 finds out |
 | T10 | Speed: hold the dependencies in the worker across compiles, so each compile sends only the project | 4.5 | Phase 3, if T6's timings need it |
-| T11 | Land #113 and #100 on legend-lite's `main` | | Phase 0 |
+| T11 | Land #113 and #100 on legend-lite's `main`. From #120, land the engine module's package and the worker client apart from its DataCube plugin | | Phase 0 |
 
 Every difference legend-lite keeps becomes a row of `docs/SEMANTICS_REGISTER.md`, posted to the user before it lands,
 as for #113.
