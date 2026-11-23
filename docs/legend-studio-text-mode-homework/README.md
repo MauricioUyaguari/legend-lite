@@ -1,4 +1,4 @@
-# Studio's text mode on legend-lite's engine module: the probes (2026-11-23)
+# Studio's engine calls on legend-lite's engine module: the probes (2026-11-23)
 
 These are the evidence for section 4 of [`../LEGEND_STUDIO_TEXT_MODE_PLAN_2026_11_23.md`](../LEGEND_STUDIO_TEXT_MODE_PLAN_2026_11_23.md).
 
@@ -7,6 +7,7 @@ These are the evidence for section 4 of [`../LEGEND_STUDIO_TEXT_MODE_PLAN_2026_1
 | `shim.mjs` | A local HTTP server that answers legend-engine's `pure/v1` routes with legend-lite's engine module, in-process, so legend-studio's own tests can call it as they call an engine. The two protocol GET routes the module lacks (`getClassifierPathMap`, `getSubtypeInfo`; neema2/legend-lite#100) are passed through to a real engine, and counted. Answers CORS as an engine does |
 | `probe.mjs` | Studio text mode's three routes, the module against a real engine: parse with positions on every Studio case, error answers, a compile with a dependency as Studio sends it, timings |
 | `probe-output.txt` | `probe.mjs`'s output on 2026-11-23 |
+| `sourceid.mjs` | Form mode's compile: a derived property's lambda carries Studio's `sourceId` (`model::A@derivedProperty@upper@u1`) and an error. Does the compile error return that `sourceId`, as form mode needs to place it? |
 
 ## Setup
 
@@ -84,6 +85,13 @@ Studio's own suite against the module:
 - **C.** A compile with a dependency's elements appended to the project fails on legend-lite (`the model's section
   index lists no section for it`). The engine compiles it.
 - **D.** Timings.
+
+**`sourceid.mjs`:**
+
+| | Error position | `sourceId` |
+|---|---|---|
+| Engine | the expression (line 4, columns 18 to 20) | `model::A@derivedProperty@upper@u1` |
+| legend-lite | the whole class (lines 1 to 5) | empty |
 
 **What these runs do not show:**
 - a browser;

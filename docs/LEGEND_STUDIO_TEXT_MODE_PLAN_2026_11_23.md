@@ -1,29 +1,37 @@
-# Legend Studio's text mode on legend-lite's WebAssembly compiler: a plan (2026-11-23)
+# Legend Studio's local mode: engine calls answered by legend-lite's WebAssembly compiler (a plan, 2026-11-23)
 
-**Status:** proposed. Nothing in it is built yet. The probes in section 4 were run on 2026-11-23, and their scripts and
+**Status:** proposed. Nothing in it is built yet. The probes in section 4 were run on 2026-11-23. Their scripts and
 outputs are in [`legend-studio-text-mode-homework/`](legend-studio-text-mode-homework/README.md).
 
-**What changed (the user, 2026-11-23):** Legend Studio, not DataCube, is the first product to use legend-lite.
-The DataCube proposal ([`LEGEND_STUDIO_INTEGRATION_PROPOSAL_2026_11_18.md`](LEGEND_STUDIO_INTEGRATION_PROPOSAL_2026_11_18.md))
-is parked, with its hook,
-[finos/legend-studio#5951](https://github.com/finos/legend-studio/pull/5951), a draft. Its plugin,
-[neema2/legend-lite#120](https://github.com/neema2/legend-lite/pull/120), waits too. This plan needs two parts of #120,
-which must land apart from its DataCube plugin (T11): the engine module as a package, and the client that answers
-`pure/v1` routes from a Web Worker.
+**What changed (the user, 2026-11-23).**
+- **Legend Studio, not DataCube, is the first product to use legend-lite.** The DataCube proposal
+  ([`LEGEND_STUDIO_INTEGRATION_PROPOSAL_2026_11_18.md`](LEGEND_STUDIO_INTEGRATION_PROPOSAL_2026_11_18.md)) is parked,
+  with its hook, [finos/legend-studio#5951](https://github.com/finos/legend-studio/pull/5951), a draft.
+- **#120 waits too, with an exception.** This plan needs two parts of
+  [neema2/legend-lite#120](https://github.com/neema2/legend-lite/pull/120), and they must land apart from its DataCube
+  plugin (T11): the engine module as a package, and the client that answers `pure/v1` routes from a Web Worker.
+- **Later the same day, the cut moved from a feature to the engine call.** This plan's first version moved Studio's
+  text mode. This version moves a set of engine API calls, wherever Studio makes them:
+  - The calls go to a **local engine** that a plugin provides. This plan calls that **local mode**.
+  - A Studio config flag turns local mode on for a deployment: "use local if provided".
+  - The first set is parse, compose and compile.
+  - Phase 2 adds a check that the project compiles before a session uses local mode.
+  - The set of calls grows as confidence grows.
 
 **What it builds on:**
-- [neema2/legend-lite#113](https://github.com/neema2/legend-lite/pull/113) (open): legend-studio's own grammar round-trip suite passes 133 of 133 on its branch, and
-  compile errors carry `sourceInformation` for Studio's text mode.
-- [neema2/legend-lite#100](https://github.com/neema2/legend-lite/pull/100) (a draft): the two protocol routes Studio calls when it starts.
+- [neema2/legend-lite#113](https://github.com/neema2/legend-lite/pull/113) (open): on its branch, legend-studio's own
+  grammar round-trip suite passes 133 of 133, and compile errors carry `sourceInformation`.
+- [neema2/legend-lite#100](https://github.com/neema2/legend-lite/pull/100) (a draft): the two protocol routes Studio
+  calls when it starts.
 
 ## Contents
 
 - [1. The goal](#1-the-goal)
-- [2. Decisions](#2-decisions)
-- [3. How Studio's text mode works today](#3-how-studios-text-mode-works-today)
+- [2. Decisions and proposals](#2-decisions-and-proposals)
+- [3. The three calls in Studio today](#3-the-three-calls-in-studio-today)
 - [4. What legend-lite answers today](#4-what-legend-lite-answers-today)
 - [5. The gaps](#5-the-gaps)
-- [6. The design](#6-the-design)
+- [6. The design: local mode](#6-the-design-local-mode)
 - [7. The phases](#7-the-phases)
 - [8. Risks](#8-risks)
 - [9. Questions for legend-studio's maintainers](#9-questions-for-legend-studios-maintainers)
@@ -31,86 +39,121 @@ which must land apart from its DataCube plugin (T11): the engine module as a pac
 
 ## 1. The goal
 
-In Studio's text mode, legend-lite's engine module does the three things the engine server does today. The module
-is WebAssembly, run in a Web Worker in the browser tab.
+Studio gets a **local mode**. In local mode, a set of engine API calls is answered in the browser by a local engine
+that a plugin provides, instead of by the engine server. legend-lite's engine module, which is WebAssembly run in a
+Web Worker, is the first local engine.
 
-1. **Compose:** turn the project's protocol JSON into the text the user edits.
-2. **Parse:** turn the text back into protocol JSON, with each element's position.
-3. **Compile:** compile that JSON together with the project's dependencies.
+The first calls are the three that turn a model into text and back and decide whether it compiles:
 
-Both of Studio's text surfaces use it: the full editor's text mode and Text Studio (strict text mode). Everything else
-Studio does stays on the engine server: form mode, tests, generation, execution, service registration and SDLC.
+| Call | Engine route |
+|---|---|
+| Parse | `grammar/grammarToJson/model` |
+| Compose | `grammar/jsonToGrammar/model` |
+| Compile | `compilation/compile` |
 
-It rolls out in phases, starting with one test deployment.
+Everything else stays on the engine server. The set of local calls grows one call at a time, as each is shown to
+answer as the engine does.
 
-## 2. Decisions
+A deployment turns local mode on in its configuration and registers the plugin. The first deployment is an internal
+test environment.
 
-**Ruled by the user on 2026-11-23:**
+## 2. Decisions and proposals
+
+### 2.1 Ruled by the user on 2026-11-23
 
 | # | Question | Ruling |
 |---|---|---|
-| 1 | Which text surface | Both: the full editor's text mode and Text Studio. They share one code path |
-| 2 | Which operations | All three: compose, parse and compile |
-| 3 | How a session picks legend-lite | A switch first, for the test deployment. Later an "auto" mode, where legend-lite is used only after it agrees with the engine |
-| 4 | When legend-lite fails during a session | Show legend-lite's parse and compile errors. When legend-lite refuses something it does not support, rerun on the engine and stay on the engine for the rest of the session. This departs from the DataCube step's rule that a failure is never retried on the engine |
-| 5 | How it reaches a deployment | Through the published packages. A deployment that builds Studio from the published `@finos` packages can use only a hook that is merged and released. legend-lite's packages are not on a public registry, so the deployment publishes them itself and loads legend-lite through a plugin it registers |
-| 6 | The DataCube work | Parked. The discussion is reworded around Studio |
+| 1 | What moves | Engine API calls, wherever Studio makes them, not one feature. First parse, compose and compile; more as confidence grows |
+| 2 | How a deployment turns it on | A flag in Studio's configuration ("use local if provided"), plus the plugin that provides the local engine |
+| 3 | Phase 1 | An internal test deployment with the flag on and legend-lite loaded, used for a while |
+| 4 | Phase 2 | Combine the flag with a check: a session uses local mode once the project passes compile |
+| 5 | When the local engine fails during a session | Show its parse and compile errors. When it refuses something it does not support, rerun that call on the engine and stay on the engine for the rest of the session. This departs from the DataCube step's rule that a failure is never retried on the engine |
+| 6 | How it reaches a deployment | Through the published packages. A deployment that builds Studio from the published `@finos` packages can use only a hook that is merged and released. legend-lite's packages are not on a public registry, so the deployment publishes them itself and loads legend-lite through a plugin it registers |
+| 7 | The DataCube work | Parked. The discussion is reworded around Studio |
 
-**Proposed here and not yet ruled.** Section 6 explains each.
+### 2.2 Proposed here, for the user to rule
 
-- **A. What gets routed.** The design routes at the engine. While legend-lite is in use, every compose, parse and
-  text compile in the session goes to it. That includes the diff views, the model importer and conflict
-  resolution, which an earlier assumption kept on the engine. The alternative routes text mode alone, at the cost of
-  a larger change to `legend-graph`. Recommended: route at the engine (6.3).
-- **B. When the auto check runs.** The design checks on the first text-mode compile the engine passes, not at project
-  load. In Text Studio those are the same moment. In the full editor, the check happens when the user first compiles
-  in text mode. Recommended: the first passing compile (6.4).
-- **C. When ruling 4 can work.** Today legend-lite's refusals look like ordinary errors. Until legend-lite marks them,
-  ruling 4 behaves like "show legend-lite's error". The marker must cover two cases: "not supported", and the
-  ledgered cases where legend-lite rejects a model the engine accepts. Recommended: mark both in phase 0 (6.6).
+Each of these refines a ruling above. Sections 5 to 7 give the details.
 
-## 3. How Studio's text mode works today
+- **P1. The set of local calls is configuration, not code.** The plugin declares which calls it answers. The
+  deployment's configuration lists which of them go local. Studio routes a call locally only if both say so. Adding a
+  call is then a configuration change plus legend-lite's support, with no Studio release. Under this, the plugin
+  doesn't have to implement a fixed set of three; legend-lite's will implement all three.
+- **P2. Compile joins after two fixes.**
+  - Today legend-lite refuses any compile request that includes the project's dependencies (T1). That is almost
+    every real project.
+  - Its compile errors also don't return the `sourceId` that form mode uses to place them (T12). A form-mode compile
+    error would therefore send the user to text mode every time.
+  - Phase 1 starts with parse and compose, and compile is added by configuration once T1 and T12 land.
+- **P3. Parse and compose are turned on together.** Text mode composes the model and parses it back. One
+  implementation doing both keeps that round trip consistent.
+- **P4. Each user can turn local mode off.** A switch in the Dev Tool panel, remembered in the browser, lets a tester
+  go back to the engine without a redeployment.
+- **P5. Confidence is measured, not assumed.**
+  - Every call records whether it ran locally or on the engine, how long it took, and whether it failed or was
+    refused.
+  - Phase 2's check compares the local engine with the engine server once per session.
+  - Optionally, phase 1 compares a sample of calls in the background and logs only the result.
+  - Without some comparison, confidence rests on the absence of complaints.
+- **P6. "Passes compile" means passes locally and agrees with the engine.** Phase 2's check runs on the first compile
+  the engine passes in the session. A project that does not compile yet stays on the engine until it does.
+- **P7. "If provided" includes "the browser can run it".** Studio checks before the first local call that a plugin is
+  registered, the browser supports WebAssembly GC (Chrome and Edge 119, Firefox 120, Safari 18.2) and the module
+  loads. If not, the session uses the engine. This is a capability check made once, not a retry after an error.
+
+## 3. The three calls in Studio today
 
 Line numbers are legend-studio at
 [`d564dd86d`](https://github.com/finos/legend-studio/tree/d564dd86d3681ae075855b66ca94ecd1584e0368).
 
-**Three engine routes, and no others:**
+### 3.1 Where Studio makes them
 
-| Route | Used for | Where |
-|---|---|---|
-| `grammar/jsonToGrammar/model` (`renderStyle=PRETTY`) | Entering text mode: the graph, or the workspace's entities, composed to text | `GraphEditGrammarModeState.cleanupBeforeEntering` (line 739); Text Studio's load, `EditorStore` (line 1063) |
-| `grammar/grammarToJson/model` (`returnSourceInformation=true`) | The element index (go to definition, the cursor on entry), local changes, and the first half of every compile | `GraphEditGrammarModeState.initialize` (line 176) and `goToElement`; `V1_RemoteEngine.compileText` (line 687) |
-| `compilation/compile` | The second half of every compile: F9, leaving text mode, and Text Studio's load | `V1_RemoteEngine.compileText` (line 687) |
+All three go through one client class, `V1_EngineServerClient` (`grammarToJSON_model`, `JSONToGrammar_model`,
+`compile`). The client is called by these engine methods of `V1_RemoteEngine`:
 
-**What Studio does with the answers.** Studio rebuilds its own graph from the parse output with its TypeScript graph
-builder (`updateGraphAndApplication`, line 415). It also computes the workspace's local changes from that output. So
-the protocol JSON legend-lite returns must be the JSON the engine would return. A difference shows up in the workspace
-as a change nobody made. Errors come back as `ParserError` or `CompilationError`, and Studio puts the cursor at the
-error's `sourceInformation`.
+| Call | `V1_RemoteEngine` methods |
+|---|---|
+| Parse | `transformCodeToPureModelContextData`, `compileText` (first half), `combineTextAndPMCD` |
+| Compose | `transformPureModelContextDataToCode`, `transformProtocolGraphToCode`; also inside `generateFile` (the model as text, sent to the engine's generation route) and `generateModel` (a generated model as text) |
+| Compile | `compilePureModelContextData`, `compileText` (second half) |
 
-**The compile payload.** `V1_PureGraphManager.compileText` (line 2172) takes the compile context from the graph:
-- the dependencies' entities, as they came from Depot;
-- the generated elements.
+In Studio and its extensions, nothing else calls the client for these routes. Outside Studio, DataCube and Legend
+Cube call the parse route directly, and they are unaffected.
 
-`V1_serializePureModelContext` appends the dependencies' entity JSON to `elements`. `mergeObjects` then concatenates
-that list with the parsed project's own elements, which include its section index. So a compile request holds:
-- every dependency element;
-- every project element;
-- a section index that lists only the project's elements.
+### 3.2 What uses them
 
-**Two surfaces.**
-- **The full editor** builds its graph in the browser at load and calls none of these routes. They run when the user
-  enters text mode, compiles there or leaves it, or when the graph can't be built and the editor falls back to text
-  mode.
-- **Text Studio** ("Strict Text Mode (BETA)") composes, parses and compiles the whole project on load, and never
-  leaves text mode.
+What moves to the local engine when each call does, by feature:
 
-**The seam.** `V1_PureGraphManager.initialize` (line 773) already accepts an engine, typed `V1_GraphManagerEngine`.
-Studio doesn't pass one today, so it gets the default `V1_RemoteEngine`. The comment above `V1_RemoteEngine` (line 261)
-anticipates this: "this might change in the future if we ever bring some engine functionalities to Studio".
-The engine's client is reached through `getEngineServerClient()`, on the engine taken as a `V1_RemoteEngine`, in 25
-places: 11 in `legend-graph` and 14 outside it, 8 of those in the DataQuality extension. So whatever engine Studio
-passes must still be a `V1_RemoteEngine`.
+| Call | Studio features (graph-manager method) |
+|---|---|
+| Parse | Text mode: the element index, go to definition, local changes (`pureCodeToEntities`). The model importer, conflict resolution, the schema-set editor, data product ingestion, the GraphQL introspection wizard, the showcase viewer, the query connection workflow. Text mode's compile (`compileText`). Generation from text mode (`buildPMCDWithOptions`) |
+| Compose | Entering text mode (`graphToPureCode`, `entitiesToPureCode`). Text Studio's load. The diff views and conflict editor, each element's grammar view, the service editor (`elementsToPureCode`), the database builder wizards, mapping test migration, the data product editor and access points, the data space home tab, dev metadata and the Dev Tool panel. File generation's input and model generation's output |
+| Compile | Form mode's compile, F9 (`compileGraph`). Text mode's compile, F9 and leaving it (`compileText`). Text Studio's load. The schema-set editor. The project dependency editor, the data space query promotion reviewer and the query productionizer (`compileEntities`) |
+
+Studio's text mode uses exactly these three calls and no others. When Studio's round-trip suite ran through the
+module (4.1), the shim served only these three, plus the two start-up protocol routes, which stay on the engine.
+
+### 3.3 What Studio does with the answers
+
+- **Parse output becomes Studio's graph and the workspace's changes.** In text mode, Studio rebuilds its graph from
+  the parse output (`updateGraphAndApplication`, line 415 of `GraphEditGrammarModeState.ts`). It computes local
+  changes from that output too.
+  - Each changed element is pushed to SDLC with the parsed JSON as its content (`ChangeDetectionState.ts`, lines 166
+    to 226). **In local mode, legend-lite's JSON is what gets committed for every element a user changes in text
+    mode.**
+  - A difference in that JSON also shows as a change nobody made.
+- **Errors are placed by their `sourceInformation`.**
+  - Text mode puts the cursor at the error's position.
+  - Form mode compiles with `keepSourceInformation: true`. Each lambda carries a `sourceId` built from its element and
+    field, such as `model::A@derivedProperty@upper@<uuid>`. Form mode finds the editor for an error from the `sourceId`
+    the error returns (`GraphEditFormModeState.ts`, around line 512). When it can't, it switches the user to text
+    mode.
+- **A compile request holds the dependencies.** `compileText` (line 2172 of `V1_PureGraphManager.ts`) appends:
+  - the dependencies' entities, as they came from Depot (`V1_serializePureModelContext`);
+  - the generated elements;
+  - the parsed project, whose section index lists only the project's own elements (`mergeObjects`).
+
+  Form mode's `compileGraph` sends the whole graph, dependencies included.
 
 ## 4. What legend-lite answers today
 
@@ -131,17 +174,17 @@ extensions.
 | legend-engine (local) | 266 of 270 | 4: the two `###GraphQL` cases, which this engine build can't parse either |
 | legend-lite (module) | 265 of 270 | 5: the same four, plus `DSL_DataQuality-relation-comparison-advanced` with extensions. The engine writes `additionalColumnsToPersist: []`, Studio's extension writes it too, and legend-lite leaves the field out |
 
-**What this checks, and what it doesn't.** Each case has Studio read one server's JSON, build its graph, serialize it
-again and compare. It also has the same server compose and compile. So it shows that Studio accepts legend-lite's
-output and that legend-lite round-trips Studio's cases. It doesn't compare legend-lite with the engine; 4.2 does that.
+**What this checks, and what it doesn't.** In each case:
+- Studio reads one server's JSON, builds its graph, serializes it again and compares;
+- the same server composes the model and compiles Studio's serialized JSON.
 
-The two protocol routes Studio's suite calls when it starts (`getClassifierPathMap`, `getSubtypeInfo`) were passed
-through to the engine; #100 adds them to legend-lite. Text mode doesn't call them.
+So it shows that Studio accepts legend-lite's output and that legend-lite compiles Studio's own JSON. It does not
+compare legend-lite with the engine. 4.2 does that.
 
 ### 4.2 legend-lite against the engine, on the same text
 
-This calls `grammarToJson/model?returnSourceInformation=true`, as Studio's text mode does, on the 133 cases both
-servers parse.
+This calls `grammarToJson/model?returnSourceInformation=true`, as text mode does, on the 133 cases both servers
+parse.
 
 | Result | Cases |
 |---|---|
@@ -165,8 +208,7 @@ engine here reports a later version. Two things count against simply calling the
 - #113 dates the DataQuality field to 4.148.0;
 - this engine build can't parse `###GraphQL`, which Studio's own cases use.
 
-**Unmeasured:** whether any of these differences changes the hashes Studio computes for local changes. That is the
-first measurement of phase 0.
+**Unmeasured:** whether any of these differences changes the hashes Studio computes for local changes.
 
 ### 4.3 Errors
 
@@ -178,8 +220,7 @@ first measurement of phase 0.
 | A function body of the wrong type | at the body | the whole function |
 | A Pure class mapping with no `~src` | 200: compiles | 400 `COMPILATION`. legend-lite refuses it by ruling (register row S21), and nothing in the answer says it is a refusal |
 
-The wording differs in every case. legend-lite's messages also start with `[line:col]`. Studio shows the message as it
-is.
+The wording differs in every case. legend-lite's messages also start with `[line:col]`.
 
 ### 4.4 A compile with dependencies, as Studio sends it
 
@@ -189,11 +230,24 @@ Studio's merge does it.
 - **Engine:** 200.
 - **legend-lite:** 400, `dep::Person: the model's section index lists no section for it`.
 
-**This blocks text mode for any project with dependencies or generated elements** (gap T1).
+**This blocks local compile for any project with dependencies or generated elements** (T1).
 
-### 4.5 Timings
+### 4.5 Form mode's compile errors
 
-Milliseconds, the mean of two runs (for the smallest model, the range):
+A derived property's lambda was stamped with Studio's `sourceId`, `model::A@derivedProperty@upper@u1`, with an error
+in it, as form mode sends it (`sourceid.mjs`).
+
+| | Error position | `sourceId` |
+|---|---|---|
+| Engine | the expression (line 4, columns 18 to 20) | `model::A@derivedProperty@upper@u1` |
+| legend-lite | the whole class (lines 1 to 5) | empty |
+
+With legend-lite's answer, form mode can't find the editor, so it would switch the user to text mode on every compile
+error (T12).
+
+### 4.6 Timings
+
+Milliseconds, the mean of two runs; for the smallest model, the range. Caveats:
 - Both sides were already warm.
 - legend-lite ran in Node 25, not a browser.
 - The engine was local, reached over loopback, so there was no network and no upload.
@@ -205,264 +259,262 @@ Milliseconds, the mean of two runs (for the smallest model, the range):
 | Synthetic: 500 classes, 100 functions | 28 / 89 | 74 / 21 | 168 / 50 |
 | Synthetic: 2,000 classes, 400 functions | 128 / 383 | 270 / 58 | 634 / 153 |
 
-Against a warm local engine, legend-lite parses about 3 times faster. It composes about 4.5 times slower and compiles
+Against a warm local engine, legend-lite parses about 3 times faster, composes about 4.5 times slower and compiles
 about 4 times slower. A deployed engine adds the network, plus an upload of the whole project and its dependencies on
-every compile; the module adds a one-time download of 9.3 MB.
+every compile. The module adds a one-time download of 9.3 MB.
 
 ## 5. The gaps
 
-Each gap is in legend-lite unless the table says otherwise.
+Each gap is in legend-lite unless the table says otherwise. "Blocks" names the call that can't go local until the gap
+is closed.
 
-| # | Gap | Evidence | Needed before |
+| # | Gap | Evidence | Blocks |
 |---|---|---|---|
-| T1 | Compile a request whose section index doesn't list every element (dependencies and generated elements) | 4.4 | Phase 2. **Blocker** |
-| T2 | Parse errors carry `sourceInformation` in the engine's shape | 4.3 | Phase 2 |
-| T3 | Mark refusals in the error answer: "not supported", and the ledgered cases where legend-lite rejects what the engine accepts (S21) | 4.3 | Phase 2 (ruling 4 relies on it) |
-| T4 | Measure whether 4.2's differences change Studio's hashes; remove any that do | 4.2 | Phase 2 |
-| T5 | Target the engine version the deployment runs. Rerun 4.1 and 4.2 against it, then align or ledger every difference | 4.2 | Phase 2 |
-| T6 | The project's real dependency closures and sections, measured inside the deployment (a script; only counts leave) | none yet | Phase 2 |
-| T7 | Compile errors placed on the expression, as the engine does, not on the whole element (S400) | 4.3 | Phase 3 (the cursor lands on the right element today) |
-| T8 | Error wording: legend-engine's words, or a ledgered difference | 4.3 | Phase 3 |
-| T9 | `###GraphQL`, and any other section the deployment's projects use | 4.1 | When a project needs it; T6 finds out |
-| T10 | Speed: hold the dependencies in the worker across compiles, so each compile sends only the project | 4.5 | Phase 3, if T6's timings need it |
-| T11 | Land #113 and #100 on legend-lite's `main`. From #120, land the engine module's package and the worker client apart from its DataCube plugin | | Phase 0 |
+| T1 | Compile a request whose section index doesn't list every element (dependencies, generated elements) | 4.4 | Compile |
+| T12 | Compile errors return the failing expression's `sourceInformation` from the request: its `sourceId` and position, as the engine does. This also covers S400's element-level positions | 4.5 | Compile (form mode) |
+| T2 | Parse errors carry `sourceInformation` in the engine's shape | 4.3 | Parse (the cursor on a syntax error) |
+| T3 | Mark refusals in the error answer: "not supported", and the ledgered cases where legend-lite rejects what the engine accepts (S21). Until then, ruling 5's rerun can't fire, and every local failure is shown as it is | 4.3 | All three (ruling 5) |
+| T4 | Measure whether 4.2's differences change Studio's hashes. Check that the engine reads legend-lite's JSON, since that JSON is committed | 4.2, 3.3 | Parse |
+| T5 | Target the engine version the deployment runs. Rerun 4.1 and 4.2 against it, then align or ledger every difference | 4.2 | Parse, compose |
+| T6 | The deployment's real projects, dependency closures and sections, measured inside the deployment (a script; only counts leave) | none yet | All three, for that deployment |
+| T8 | Error wording: legend-engine's words, or a ledgered difference | 4.3 | None (quality) |
+| T9 | `###GraphQL`, and any other section the deployment's projects use. A missing section is a refusal once T3 lands | 4.1 | None (refused, then rerun) |
+| T10 | Speed: hold the dependencies in the worker across compiles, so each compile sends only the project | 4.6 | Compile, if T6's timings need it |
+| T11 | Land #113 and #100 on legend-lite's `main`. From #120, land the engine module's package and the worker client apart from its DataCube plugin | | Phase 1 |
 
 Every difference legend-lite keeps becomes a row of `docs/SEMANTICS_REGISTER.md`, posted to the user before it lands,
 as for #113.
 
-## 6. The design
+## 6. The design: local mode
 
-Everything in this section is **proposed**. The hook, the routing engine and the setting are not built.
+Everything in this section is **proposed**. The hook, the configuration and the routing are not built.
 
 ### 6.1 Where the code lives
 
 ```mermaid
 flowchart TB
-    DP["A deployment<br/>registers the plugin"]
-    subgraph L["legend-lite"]
-        direction LR
-        PL["Studio plugin<br/>@legend-lite/studio-extension"] --> CL["Worker client<br/>shared with the DataCube plugin"] --> WK["Web Worker<br/>engine module, WebAssembly"]
-    end
+    CFG["Studio's config.json<br/>engine.local: mode and calls"]
     subgraph S["legend-studio"]
-        direction LR
-        TM["Text mode<br/>full editor and Text Studio"] --> GM["Graph manager<br/>legend-graph"] --> RE["Text-mode engine (new)<br/>extends V1_RemoteEngine"]
-        HK["Plugin hook (new)<br/>getExtraTextModeCompilers"]
+        APP["Studio's features<br/>text mode, form mode, diff views, importer, ..."]
+        GM["Graph manager and V1_RemoteEngine<br/>unchanged"]
+        CL["V1_EngineServerClient<br/>NEW: sends local-mode calls to the local engine"]
+        HK["NEW: plugin hook<br/>getExtraLocalEngines"]
+        APP --> GM --> CL
     end
-    EN["legend-engine server"]
-    DP --> PL
-    PL -. "contributes a compiler" .-> HK
-    HK -. "its client" .-> RE
-    RE -- "compose, parse, compile<br/>while legend-lite is in use" --> CL
-    RE -- "everything else" --> EN
+    subgraph L["legend-lite"]
+        PL["Studio plugin<br/>its local engine"]
+        WK["Web Worker<br/>engine module, WebAssembly"]
+        PL --> WK
+    end
+    DP["A deployment<br/>registers the plugin"] --> PL
+    CFG -. "turns local mode on" .-> CL
+    PL -. "provides a local engine" .-> HK
+    HK -.-> CL
+    CL -- "local-mode calls" --> PL
+    CL -- "every other call" --> EN["legend-engine server"]
 ```
 
-legend-studio's packages are the published `@finos` ones. legend-lite's packages are published by the deployment
-itself.
+The cut is inside the engine client, below everything that builds requests and reads answers:
+- `V1_RemoteEngine`'s request building, its parser and compilation error mapping, its source index and its
+  warnings all stay as they are;
+- so does everything above them: the graph manager, the graph builder, change detection and every feature.
 
-**In legend-studio**, one pull request against finos/legend-studio, released before any deployment can use it:
-- `legend-graph`: `V1_RemoteEngine` can be built around a given `V1_EngineServerClient`. This is a few lines;
-  today it always creates its own client.
-- `legend-application-studio`:
-  - the hook and its contract (6.2);
-  - the text-mode engine (6.3);
-  - the setting and a control for it in the Dev Tool panel, beside the engine client's switches;
-  - a label in text mode's header that names who compiles;
-  - the refusal handling (6.6) and telemetry (6.7);
-  - a guide to writing such a plugin, as for DataCube;
-  - tests.
+A local engine receives exactly what the engine server would receive, and must answer exactly what it would answer.
 
-**In legend-lite:**
-- the engine module as an npm package (from #120's first commit);
-- the worker client, taken out of #120's DataCube plugin so both plugins share it;
-- a Studio plugin, `@legend-lite/studio-extension`, with a guide like the DataCube one: build, publish to a registry
-  you choose, register, serve the module's files.
-
-**In a deployment:**
-- depend on the released `@finos` packages and on legend-lite's packages;
-- add the plugin to `getPluginCollection()`;
-- serve the module's two files.
-
-### 6.2 The hook (proposed; the names are to be settled in review)
+### 6.2 The contract (proposed; the names are to be settled in review)
 
 ```ts
-// @finos/legend-application-studio
-interface LegendStudioTextModeCompiler {
-  key: string; // names it in the setting
-  label: string; // shown to the user: the setting, text mode's header, messages
-  createEngineServerClient(): V1_EngineServerClient & { dispose?: () => void }; // called once, on first use
-  isRefusal?(error: Error): boolean; // "this compiler does not support that": Studio asks the engine instead
-  defaultMode?: 'off' | 'on' | 'auto'; // the setting's default, chosen by the deployment through the plugin
+// a call is named by its engine route, e.g. 'grammar/grammarToJson/model'
+type EngineRoute = string;
+
+interface LegendStudioLocalEngine {
+  key: string; // names it in the configuration and telemetry
+  label: string; // shown to the user: messages, the Dev Tool panel
+  supportedRoutes: EngineRoute[]; // the calls it answers
+  /** answers one call as legend-engine's route would: the same request, the same status and JSON back */
+  answer(
+    route: EngineRoute,
+    request: { query: Record<string, string>; body: string },
+  ): Promise<{ status: number; body: string }>;
+  isAvailable?(): Promise<boolean>; // checked once, before the first local call (P7)
+  isRefusal?(response: { status: number; body: string }): boolean; // "not supported here" (ruling 5, T3)
+  dispose?(): void;
 }
 
 class LegendStudioApplicationPlugin {
-  getExtraTextModeCompilers?(): LegendStudioTextModeCompiler[];
+  getExtraLocalEngines?(): LegendStudioLocalEngine[];
 }
 ```
 
-With no plugin contributing a compiler, there is no setting and nothing changes. This is the same shape as the
-DataCube hook ([finos/legend-studio#5951](https://github.com/finos/legend-studio/pull/5951)): one client, created on first use, so the module is fetched only when text
-mode first needs it.
+- **The answer is the route's own HTTP answer.** A failure is the engine's status and error JSON, so the client turns
+  it into the same `NetworkClientError` it builds for the server. Studio's existing handling then applies unchanged.
+- **legend-lite implements `answer` in one line**, over its module's `pureV1OrError(path, query, body)`. Its worker
+  and client already exist in #120's DataCube plugin.
+- **The set can grow.** The contract has no fixed list of calls, so a new call needs no change to it (P1).
 
-### 6.3 How Studio routes: one engine subclass
+### 6.3 The configuration, and a switch for each user
 
-Studio passes `V1_PureGraphManager.initialize` an engine of its own: a subclass of `V1_RemoteEngine`, built with the
-same configuration as today. Being a subclass keeps working everything that reaches the engine as a `V1_RemoteEngine`:
-- the tracer;
-- `TEMPORARY__getEngineConfig`, which the Dev Tool panel uses;
-- the 25 `getEngineServerClient()` calls in `legend-graph`, Studio and its extensions.
+Studio's `config.json` already has an `engine` block. Local mode would sit in it:
 
-It overrides the engine methods below. While a compiler is in use, they go to a second `V1_RemoteEngine` built
-around the compiler's client. Studio's request building and error mapping then stay as they are: parser and
-compilation errors, the source index and warnings.
-
-| Engine method | Called by | While legend-lite is in use |
-|---|---|---|
-| `transformPureModelContextDataToCode` | entering text mode; also the diff views, conflict resolution, the importer and a few editors | legend-lite |
-| `transformCodeToPureModelContextData` | the element index, local changes in text mode; also the importer and conflict resolution | legend-lite |
-| `compileText` | F9 and leaving text mode; Text Studio's load | legend-lite: parse, then compile |
-| `transformProtocolGraphToCode`, `combineTextAndPMCD` | the data product editor; generation from text mode (the generation itself stays on the engine) | legend-lite |
-| `compilePureModelContextData` | form mode's compile | the engine |
-| lambda grammar, generation, tests, execution, service registration, the start-up routes | form editors and the rest of Studio | the engine |
-
-**Open choice A: what gets routed.** Routing at the engine is the smallest change, and it keeps every text a session
-shows composed by one implementation. But it also sends the diff views, the importer and conflict resolution to
-legend-lite, and a refusal there moves the whole session to the engine. The alternative keeps those on the engine.
-Text mode would then pass its own engine to four graph-manager methods, which means changing their abstract
-signatures in `legend-graph`, or Studio would keep a second graph manager for text mode. **Recommended: route at the
-engine**, and measure refusals outside text mode in phase 2.
-
-### 6.4 The session's mode
-
-```mermaid
-stateDiagram-v2
-    [*] --> Engine: no compiler, or setting is engine
-    [*] --> Lite: setting is legend-lite
-    [*] --> Checking: setting is auto
-    Checking --> Lite: agrees on the first passing compile
-    Checking --> Engine: disagrees
-    Lite --> Engine: legend-lite refuses
-    Engine --> [*]
-    Lite --> [*]
+```json
+"engine": {
+  "url": "https://engine.example.org/api",
+  "local": {
+    "mode": "on",
+    "routes": ["grammar/grammarToJson/model", "grammar/jsonToGrammar/model"]
+  }
+}
 ```
 
-- **engine:** today's behaviour.
-- **legend-lite** (phase 2): legend-lite composes, parses and compiles from the first call.
-- **auto** (phase 3): the session starts on the engine. The first time the engine compiles the project in text mode
-  without error, Studio also asks legend-lite. If legend-lite compiles it too, with the same parse JSON, legend-lite
-  serves the rest of the session. If not, the session stays on the engine, and the disagreement is reported in
-  telemetry: counts only, never model content. This costs no extra engine call, and it compares the real request,
-  dependencies included.
-- **Leaving legend-lite is one way.** A refusal moves the session to the engine for good. A reload starts over.
+| `mode` | Meaning | Phase |
+|---|---|---|
+| `off`, or no `local` block | Today's behaviour | |
+| `on` | "Use local if provided": the listed calls go to the local engine whenever a plugin provides one and the browser can run it | 1 |
+| `auto` | As `on`, but only after the session's project passes the check (6.6) | 2 |
 
-**Open choice B: when the auto check runs.** "On loading of the project" is exactly this check in Text Studio, which
-compiles on load. In the full editor, project load calls none of these routes. Checking there would cost an extra
-compose, parse and compile on both sides for every session, including the many that never open text mode.
-**Recommended: the first passing compile.**
+- **`routes`** lists the calls that go local. A call goes local only if it is listed here and in the local engine's
+  `supportedRoutes`. Adding compile in phase 1 is adding its route here (P2).
+- **The configuration is read when the app loads.** Changing it needs no new build.
+- **The Dev Tool panel** gets "Local engine: on/off for this browser", beside the engine client's switches. It can
+  only turn local mode off, never on where the deployment has it off (P4).
+- **A label** in text mode's header and on the compile notifications says who answered.
 
-### 6.5 A compile in text mode, in order
+### 6.4 How a call is routed
+
+```mermaid
+flowchart TD
+    A["Studio calls the engine client"] --> B{"Is the route in local mode?<br/>configuration lists it,<br/>the local engine supports it"}
+    B -- "No" --> E["The engine server<br/>as today"]
+    B -- "Yes" --> C{"Is local mode on for this session?<br/>mode on, or auto and the project passed;<br/>not switched off; not left after a refusal"}
+    C -- "No" --> E
+    C -- "Yes" --> D{"Available?<br/>checked once: plugin, WebAssembly GC,<br/>the module loads"}
+    D -- "No: the session uses the engine" --> E
+    D -- "Yes" --> L["The local engine answers"]
+    L -- "200" --> R["The answer, as the engine's"]
+    L -- "error" --> X{"Marked as a refusal?"}
+    X -- "No: the user's error" --> ERR["Shown as the engine's error is"]
+    X -- "Yes" --> RR["Rerun on the engine server;<br/>the session leaves local mode"]
+    RR --> E
+```
+
+### 6.5 Failures and refusals (ruling 5)
+
+- **An error in the user's model** from the local engine is shown as Studio shows the engine's: a notification, the
+  problems panel, and the cursor or the form editor at its position. This needs T2 and T12 to place it as the engine
+  does.
+- **A refusal** reruns the same call on the engine server. The session then leaves local mode for every call, so a
+  session uses one implementation at a time. The user sees a notice once.
+- **The local engine decides what a refusal is** (`isRefusal`). legend-lite's plugin recognizes legend-lite's marker
+  (T3). Until T3 lands, legend-lite marks nothing, and every local failure is shown as it is.
+
+### 6.6 Phase 2: the project check
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant T as Text mode
-    participant G as Graph manager
-    participant R as Text-mode engine
-    participant C as legend-lite's client
-    participant W as Worker (WebAssembly)
+    participant U as Studio
+    participant C as Engine client
     participant E as Engine server
-    T->>G: compileText(text, graph)
-    G->>G: the compile context: dependencies' entities, generated elements
-    G->>R: compileText(text, context)
-    opt first use in the session
-        R->>C: create the client (the plugin)
-        C->>W: start the worker, load the module (9.3 MB, then cached)
+    participant L as Local engine
+    Note over U,L: mode is auto: local mode is off until the project passes
+    U->>C: the first compile of the session
+    C->>E: compile (as today)
+    E-->>C: passes
+    C->>L: the same request
+    L-->>C: its answer
+    alt passes, and agrees with the server
+        Note over C: local mode on for the rest of the session
+    else fails or disagrees
+        Note over C: the session stays on the engine, and telemetry records why (never content)
     end
-    R->>C: grammarToJson/model, with positions
-    C->>W: the pure/v1 route
-    W-->>R: protocol JSON with positions
-    R->>C: compilation/compile, the context and the project
-    C->>W: the pure/v1 route
-    alt compiles
-        W-->>R: 200, warnings
-        R-->>T: entities, warnings, the source index
-        T->>T: rebuild the graph, compute local changes
-    else a parse or compile error
-        W-->>R: 400, message and position
-        R-->>T: the error, and the cursor at its position
-    else legend-lite refuses (marked, T3)
-        W-->>R: a refusal
-        R->>E: compileText, rerun on the engine
-        E-->>R: the engine's answer
-        R-->>T: that answer, and a notice: text mode uses the engine from now on
-    end
+    C-->>U: the server's answer, as today
 ```
 
-### 6.6 Failures (ruling 4)
-
-- **A parse or compile error** from legend-lite is shown as Studio shows the engine's: a notification, the problems
-  panel, and the cursor at the position.
-- **A refusal** reruns the same call on the engine. The session switches to the engine, and the user sees a notice once.
-- **The compiler decides what a refusal is** (`isRefusal`). legend-lite's plugin recognizes legend-lite's marker
-  (T3).
-
-**Open choice C: before T3, ruling 4 can't work.** Today legend-lite answers S21 and "not supported" as ordinary 400
-errors (4.3), so Studio can't tell them from the user's mistakes. Until T3 lands, every legend-lite failure is shown
-as it is, which is ruling 4's option "show legend-lite's error". The marker must also cover the ledgered cases where
-legend-lite rejects what the engine accepts. Otherwise a model the engine compiles would be shown to the user as an
-error. **Recommended: T3 in phase 0, before any tester uses the switch.**
+- **When it runs:** on the first compile the server passes in the session.
+  - In Text Studio that is the project's load.
+  - In the full editor it is the first compile, in form mode or text mode.
+  - The check adds no server call, because the server compiles at that moment anyway.
+- **What "agrees" means:**
+  - both compile without error;
+  - for a text compile, the local parse JSON equals the server's;
+  - optionally, the local engine also composes the parsed model, and its text is compared with the server's.
+- **A project that doesn't compile yet** stays on the engine until a compile passes.
+- **An alternative:** check at project load in the full editor too. That costs one more compile on each side, in
+  every session, including the many that never compile. Not recommended.
 
 ### 6.7 Telemetry
 
-Studio already logs text mode's launch, success and failure of compiles, with timings. Each event gains the compiler
-that answered it. New events cover:
-- a refusal, with its kind;
-- an auto check's result, agreed or disagreed, with element counts.
+Studio already logs compiles, text mode's sessions and their timings. Each call gains:
+- whether it ran locally or on the engine;
+- the local engine's key;
+- how long it took;
+- whether it failed or was refused, and the refusal's kind.
 
-None carries the text, the JSON or element paths.
+Phase 2 adds the check's result: agreed, or which part disagreed, with element counts.
+
+None of it carries text, JSON or element paths. An optional sampled comparison in phase 1 (P5) would log only
+"same" or "different".
 
 ## 7. The phases
 
 ```mermaid
 flowchart LR
-    P0["Phase 0<br/>legend-lite ready<br/>no Studio change"] --> P2
-    P1["Phase 1<br/>the hook in legend-studio<br/>merged and released"] --> P2
-    P2["Phase 2<br/>test deployment<br/>switch, for testers"] --> P3["Phase 3<br/>test deployment<br/>auto by default"]
-    P3 --> P4["Phase 4<br/>more deployments opt in"]
+    P0["Phase 0<br/>legend-lite: T1, T12, T2, T3,<br/>T4 and T5; packages"] --> P1
+    PR1["legend-studio PR 1<br/>local mode, released"] --> P1
+    P1["Phase 1<br/>internal deployment, mode on<br/>parse and compose, then compile"] --> P2
+    PR2["legend-studio PR 2<br/>mode auto, released"] --> P2
+    P2["Phase 2<br/>mode auto<br/>for every user of that deployment"] --> P3["Phase 3<br/>more calls, one at a time<br/>by configuration"]
+    P3 --> P4["Phase 4<br/>more deployments"]
 ```
-
-Phases 0 and 1 run in parallel; phase 2 needs both. legend-studio's pull request carries everything Studio needs for
-every phase: the switch, auto, the refusal handling and the telemetry. Each release is a wait for the deployment, so
-phases 2 to 4 are a deployment's settings and legend-lite's releases, with no further change to legend-studio.
 
 | Phase | Work | Exit |
 |---|---|---|
-| **0. legend-lite ready** | First T4: do 4.2's differences move Studio's hashes? Then T1 (blocker), T2, T3, T5 against the deployment's engine version, T11. Lanes in legend-lite for Studio's round trip through the module, the dependency request and the error shapes. The packages: module, shared worker client, Studio plugin and its guide. T6 inside the deployment | Studio's suite through the module matches the engine of the deployment's version. A project with dependencies compiles. Parse errors place the cursor. Refusals are marked. No difference that moves a hash is left |
-| **1. The hook, upstream** | One pull request to finos/legend-studio (6.1 to 6.7), reviewed, merged and released | Released in `@finos/legend-application-studio` and `@finos/legend-graph`. legend-lite's plugin builds against the release |
-| **2. Test deployment, by switch** | The deployment upgrades to the release, adds legend-lite's packages, registers the plugin and serves the module. Testers set the setting to legend-lite | Over an agreed period of real use, no phantom changes: entering and leaving text mode without edits leaves no local change. No verdict the pipeline contradicts. Refusals counted by kind. Compile times known on real projects |
-| **3. Test deployment, auto** | The deployment's default becomes auto. T7 and T8, and T10 if the timings need it | The agreement rate on real projects is known and high, and no wrong verdict is reported |
-| **4. More deployments** | Other deployments opt in. Once agreement is proven, auto may drop the engine comparison, which takes the engine out of text mode. Later candidates: form-mode compile, and the lambda grammar calls of the form editors (these need legend-lite's `valueSpecification` routes) | Each deployment's own phase 2 and 3 exits |
+| **0. legend-lite ready** | T1 and T12, which compile needs. T2 and T3. T4 and T5 against the deployment's engine version. T11. Lanes in legend-lite: Studio's round trip through the module, the dependency request, form mode's `sourceId`, the error shapes. The packages: the module, the worker client, the Studio plugin and its guide, published by the deployment | A project with dependencies compiles. Form-mode errors carry the request's `sourceId`. Parse errors place the cursor. Refusals are marked. No JSON difference that moves a hash, or that the engine can't read, is left |
+| **PR 1 (legend-studio)** | The hook and contract (6.2), the configuration (6.3), the routing in the engine client (6.4), the Dev Tool switch, the refusal handling (6.5), the telemetry (6.7), a guide to writing a local engine plugin, tests. Released | Released in `@finos/legend-graph` and `@finos/legend-application-studio`. legend-lite's plugin builds against the release |
+| **1. Internal deployment, mode `on`** | Upgrade to the release. Register the plugin and serve the module. Set `mode: on` with parse and compose; add compile's route once T1 and T12 are released in legend-lite. Testers use Studio as usual | Over an agreed period: entering and leaving text mode without edits leaves no local change; no committed JSON the engine rejects; no verdict the pipeline contradicts; refusals counted by kind; times known on real projects |
+| **PR 2 (legend-studio)** | `mode: auto` and the project check (6.6). It can start during phase 1 | Released |
+| **2. That deployment, mode `auto`** | Every user of the deployment. Local mode where the project passes | The agreement rate on real projects is known and high, and no wrong verdict is reported |
+| **3. More calls** | One call at a time, each first proven in a legend-lite lane, then added to `routes` | Each call's own measurements in that deployment |
+| **4. More deployments** | Others opt in through their own configuration | Each deployment's own phases 1 and 2 |
+
+**Phase 3's candidate calls,** in a suggested order:
+
+| Calls | Used by | legend-lite today |
+|---|---|---|
+| `grammar/grammarToJson/lambda`, `grammar/jsonToGrammar/lambda` (and `/batch`) | Every form editor with a lambda: shown as text on load, parsed on edit | Answers them (the DataCube proposal, section 3). Not yet measured against Studio's editors |
+| `compilation/lambdaReturnType`, `compilation/lambdaRelationType` | Editors that type a lambda (mapping, query builder) | Answers them. Plain type names where the engine gives database ones (the DataCube proposal's G10) |
+| `grammar/grammarToJson/valueSpecification`, `grammar/jsonToGrammar/valueSpecification` (and `/batch`) | The query builder | Not yet (the DataCube proposal's G6) |
+| `grammar/grammarToJson/relationalOperationElement`, its compose route | The database editor | Not measured |
+| `protocol/pure/getClassifierPathMap`, `protocol/pure/getSubtypeInfo` | Studio's start-up | #100 |
+| `execution/generatePlan` | Showing a query's plan | Answers it, with the DataCube proposal's limits |
+
+Execution, tests, generation and service registration stay on the engine server.
+
+**Why two pull requests.** PR 1 is small enough to review and release quickly, and phase 1 only needs PR 1. PR 2's
+design benefits from what phase 1 shows. Each needs a release, but PR 2's release can happen while phase 1 runs.
 
 ## 8. Risks
 
 | Risk | Why it matters | Mitigation |
 |---|---|---|
-| **legend-lite accepts what the engine rejects** | The user commits it and the project's build, which compiles on the engine, fails. Telemetry can't see this | legend-lite's parser mutation tests and engine-dialect strictness; auto's agreement check; testers report pipeline failures in phase 2 |
-| **Phantom changes** | A JSON difference becomes a local change in every workspace that opens text mode | T4 before phase 2. The no-edit check is an exit criterion |
-| **Engine version drift** | legend-lite matches one engine version; deployments upgrade | T5: pin legend-lite's parity to the deployment's version, and rerun 4.1 and 4.2 on every upgrade |
-| **Large projects** | Composing and compiling are about 4 times slower than a warm engine, and dependencies are recompiled on every compile | T6 measures real projects, T10 holds the dependencies, and auto keeps the engine where legend-lite disagrees |
-| **The release wait** | Phase 2 can't start before the hook is released | One pull request with everything; phase 0 runs meanwhile |
-| **A refusal outside text mode** | With routing at the engine, a refusal in the importer moves the session to the engine | Counted in phase 2; choice A can be revisited |
-| **Download and memory** | 9.3 MB on first use, and a second copy of the model in the worker | Fetched only on first use, then cached by the browser; measured in phase 2 |
+| **legend-lite accepts what the engine rejects** | The user commits it, and the project's build, which compiles on the engine, fails. Telemetry can't see this | legend-lite's parser mutation tests and engine-dialect strictness; phase 2's agreement check; optional sampled comparison (P5); testers report pipeline failures in phase 1 |
+| **legend-lite's JSON is committed** | In text mode, every changed element is pushed with the parser's JSON (3.3) | T4 and T5 before phase 1: no difference the engine can't read, and none that moves a hash |
+| **Form mode's errors** | Without T12, every form-mode compile error sends the user to text mode | Compile is not local until T12 lands (P2) |
+| **Engine version drift** | legend-lite matches one engine version, and deployments upgrade | T5: pin legend-lite's parity to the deployment's version. Rerun 4.1 and 4.2 on every upgrade |
+| **Large projects** | Composing and compiling are about 4 times slower than a warm engine, and dependencies are recompiled on every compile | T6 measures real projects, T10 holds the dependencies, and `routes` can leave compile on the engine |
+| **The release wait** | Phase 1 can't start before PR 1 is released | PR 1 kept small; phase 0 runs meanwhile |
+| **A refusal anywhere ends local mode** | Routing by call includes the importer, the diff views and the generation steps, and a refusal in any of them moves the session to the engine | Counted in phase 1; refusals become legend-lite fixes |
+| **Download and memory** | 9.3 MB on first use, and a second copy of the model in the worker | Fetched only on first use, then cached; measured in phase 1 |
 
 ## 9. Questions for legend-studio's maintainers
 
-1. Is a text-mode compiler hook in `legend-application-studio` acceptable? It is generic, and nothing changes without
-   a plugin.
-2. Route at the engine (every compose, parse and text compile while a compiler is in use), or text mode alone (choice
-   A)?
-3. May `V1_RemoteEngine` take an existing client?
-4. One pull request with the switch, auto and refusal handling, or smaller steps, given each needs a release?
-5. Are telemetry events that carry counts and timings, and never model content, acceptable?
+1. Is a local-engine hook acceptable in `legend-application-studio`, with the routing in `legend-graph`'s engine
+   client? It is generic, and nothing changes without both a plugin and the configuration.
+2. Should the calls that may go local be any route the configuration lists, or a list Studio fixes in code? The
+   first lets a deployment add a call without a Studio release. The second keeps each new call behind a review.
+3. Should the contract be one `answer(route, request)` method, or one typed method per call?
+4. Is `engine.local` in `config.json`, with `mode` and `routes`, the right place?
+5. Are telemetry events with counts and timings, and never model content, acceptable?
 
 ## 10. What was not verified
 
@@ -473,6 +525,10 @@ phases 2 to 4 are a deployment's settings and legend-lite's releases, with no fu
 - **The deployment's engine version.** The engine used reports 4.152.1-SNAPSHOT. Its differences from legend-lite
   (4.2) are not explained.
 - **Studio's hashes** for 4.2's eight differing cases (T4).
-- **Any Studio code.** The hook and the text-mode engine are designs, not code. That an engine subclass passed to
-  `initialize` keeps every caller working is inferred from reading the code, not run.
+- **The other callers.** Only text mode and form mode's error placement were probed. The importer, the diff views,
+  generation and the other callers in 3.2 were read in the code, not run. So was the compile of Studio's unknown
+  elements, the raw JSON of extensions Studio has no plugin for.
+- **Warnings.** Whether legend-lite returns the engine's compile warnings (deprecations, for example) was not
+  checked.
+- **Any Studio code.** The hook, the configuration and the routing are a design, not code.
 - **Timings with dependencies** (4.4 stopped them), in a browser, or against a deployed engine.
