@@ -1,6 +1,7 @@
-// Spike 11: legend-lite's engine client as legend-studio compiled it (phase 1's M1), reached the way DataCube
-// reaches it: the client in the page's bundle, the assets file by a dynamic import. `@probe/planner` is an alias build.cjs sets
-// to legend-studio's packages/legend-application-data-cube/lib/stores/planner.
+// Spike 11: legend-lite's engine client as its DataCube plugin compiles it (wasm/data-cube-extension, since
+// 2026-11-23; before, it was in legend-studio's packages/legend-application-data-cube/lib/stores/planner), reached the
+// way DataCube reaches it: the client in the page's bundle, the assets file by a dynamic import. `@probe/planner` is
+// an alias build.cjs sets to the plugin's lib.
 import { LegendLiteEngineClient } from '@probe/planner/LegendLiteEngineClient.js';
 import { LegendLiteEngineTransport } from '@probe/planner/LegendLiteEngineTransport.js';
 

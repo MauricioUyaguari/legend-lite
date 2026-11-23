@@ -1,9 +1,9 @@
 # Phase 1 implementation plan: DataCube's `generatePlan` answered in the tab (2026-11-18)
 
-**Status:** M0 to M3 are written, checked and in pull requests ([Progress](#progress)). M2 and M3 ran in the
-DataCube app against a real engine. M4's wider checks and M5 are not started. Two things changed after this plan
-was written, and the milestones below describe the plan, not what was built:
-[Changes since this plan](#changes-since-this-plan). It implements phase 1 of
+**Status:** M0 to M2 are written, checked and in pull requests ([Progress](#progress)); M3, shadow mode, was
+written and then taken out of phase 1 (2026-11-23). M2 ran in the DataCube app against a real engine. M4's wider
+checks and M5 are not started. Four things changed after this plan was written, and the milestones below describe
+the plan, not what was built: [Changes since this plan](#changes-since-this-plan). It implements phase 1 of
 [`LEGEND_STUDIO_INTEGRATION_PROPOSAL_2026_11_18.md`](LEGEND_STUDIO_INTEGRATION_PROPOSAL_2026_11_18.md)
 (its section 7). Section 2 lists where reading the code changed that proposal.
 
@@ -12,8 +12,9 @@ are to those commits, except in [Progress](#progress) and [Changes since this pl
 which are against legend-lite `main` at `b75d6c73a` and legend-studio `finos/master` at `74e6f1d47`.
 
 **Goal:** for a cached source, a local file or a cached Iceberg table, the SQL DataCube runs on its own
-DuckDB-WASM comes from legend-lite's planner in the tab, behind settings that are off by default, with a
-shadow mode that compares the two planners before anyone relies on the new one.
+DuckDB-WASM comes from legend-lite's planner in the tab, behind a setting that is off by default. (The plan first
+had a shadow mode comparing the two planners; it is not in phase 1, see
+[Changes since this plan](#changes-since-this-plan).)
 
 ## Contents
 
@@ -37,14 +38,19 @@ shadow mode that compares the two planners before anyone relies on the new one.
 
 ## Progress
 
-As of 2026-11-20. Two pull requests hold the work:
+As of 2026-11-23. Two pull requests hold the work:
 
-- **M0:** [neema2/legend-lite#120](https://github.com/neema2/legend-lite/pull/120), ready for review, rebased onto
-  `main` at `b75d6c73a`.
-- **M1 to M3:** [MauricioUyaguari/legend-studio#2](https://github.com/MauricioUyaguari/legend-studio/pull/2), a
-  draft on the fork and not against `finos/legend-studio`, because it cannot build until the package is published
-  (decision 1). Its base branch is `finos/master` at `74e6f1d47`. Three commits: the feature, then the two
-  restructures described in [Changes since this plan](#changes-since-this-plan).
+- **legend-lite, [neema2/legend-lite#120](https://github.com/neema2/legend-lite/pull/120)**, ready for review,
+  rebased onto `main` at `b75d6c73a`: M0, the package, and since 2026-11-20 the M1 code as a DataCube plugin,
+  `wasm/data-cube-extension` (`@legend-lite/data-cube-extension`), with its README, the guide to publishing both
+  packages and registering the plugin.
+- **legend-studio, [MauricioUyaguari/legend-studio#2](https://github.com/MauricioUyaguari/legend-studio/pull/2)**,
+  a draft on the fork; its base branch is `finos/master` at `74e6f1d47`: a generic planner hook and one setting per
+  planner (M2's part in legend-studio), and no legend-lite code. It depends on nothing unpublished, so it can go to
+  `finos/legend-studio` on its own.
+
+The table below is as of 2026-11-20, before the split; [Changes since this plan](#changes-since-this-plan) says what
+moved where on 2026-11-23, and how it was checked again.
 
 | | State | Where | Checked by |
 |---|---|---|---|
@@ -145,8 +151,9 @@ version is the fixed `0.1.0`, with no commit in it yet.
 
 ## Changes since this plan
 
-Two changes, after M0 to M3 were first written. Neither changes what DataCube does. Sections 1 to 7 below are
-the plan as written on 2026-11-18; where they differ from this section, this section is what was built.
+Four changes, after M0 to M3 were first written. The first two do not change what DataCube does; the last two do.
+Sections 1 to 7 below are the plan as written on 2026-11-18; where they differ from this section, this section is
+what was built.
 
 ### The package holds the engine module (2026-11-19)
 
@@ -199,6 +206,38 @@ What that changed elsewhere:
 The client inherits methods legend-lite does not answer. They fail clearly, but the type alone does not say which
 routes work. It stays in the DataCube package: `legend-graph` is loaded by every app, and the client needs the
 worker and the package.
+
+
+### legend-lite's code moves into a plugin; legend-studio keeps a hook (2026-11-23)
+
+legend-studio is built and released publicly, so its build cannot depend on `@legend-lite/planner-wasm`, which is
+not on the public registry (decision 1). So the work is split by repository:
+
+| Piece | Was (M1 to M3) | Now |
+|---|---|---|
+| The hook: `LegendDataCubeApplicationPlugin.getExtraDuckDBQueryPlanners()`, and the class exported | Not planned | legend-studio, `application/LegendDataCubeApplicationPlugin.ts`, `index.ts` |
+| The planner contract (key, label, a client factory called once on first use, `isQuerySupported`), the setting, the choice per query | `LegendDataCubePlannerMode.ts`, legend-lite by name | legend-studio, `stores/planner/LegendDataCubeQueryPlanner.ts`, naming no planner |
+| The client, the transport, the worker, the assets file | legend-studio, `stores/planner/` | legend-lite, `wasm/data-cube-extension/src/` |
+| The shim (G1, G2) | In the client | In the plugin's client, unchanged |
+| The routing rule (G3) | `LegendDataCubePlannerMode.ts` | The plugin's `isQuerySupported` (`LegendLiteQuerySupport.ts`) |
+| The `[legend-lite]` prefix on a failure | `LegendLiteEngineError` and the engine class | The engine class prefixes any planner's failure with its label |
+
+The plugin is not built by legend-lite's Bazel build (it depends on legend-studio's `@finos` packages). It was
+compiled inside a legend-studio checkout's `node_modules` against the public package indexes, its 43 tests ran under
+legend-studio's jest configuration, and it ran registered in the DataCube dev app.
+
+### No shadow mode in phase 1 (2026-11-23)
+
+The first step is the setting alone: on, legend-lite plans the queries it takes; nothing runs the engine's plan
+beside it. M3's code (the comparison, its setting and its five telemetry events) was removed from the legend-studio
+pull request; it is in that branch's history (commit `f8d5689fa`) for a later step. Each planner now has one
+setting, `debugger.planner.<key>.enabled`.
+
+Re-run on 2026-11-23 in the DataCube dev app, against a real engine, a 60-row CSV, Chrome, with legend-lite's
+plugin registered: nothing of the module was fetched at start; one setting was shown; with it on, no
+`generatePlan` reached the engine and the grid drew its 60 rows. legend-studio's planner tests are 15 (149 across
+the package; the 17 failures of `LegendDataCubeBuilder` are on unchanged code too), and the package's `lint:js`
+passes now that nothing names the unpublished package.
 
 ---
 
@@ -431,6 +470,8 @@ no planner file is requested. That check is M4.
 
 ### M3. Shadow mode (legend-studio)
 
+*Not in phase 1 (2026-11-23): written, run, then removed. See [Changes since this plan](#changes-since-this-plan).*
+
 In `shadow`, `_executeOnDuckDB` returns the engine's result exactly as in `engine`. After it has returned,
 and never awaited by the caller:
 
@@ -530,11 +571,11 @@ legend-studio sends fails there.
 
 ## 6. Decisions needed
 
-1. **Where the package is published** (registry, scope, who releases), and whether legend-studio upstream
-   may depend on it. Until then the work can proceed on a branch with the local-path dependency, but cannot
-   merge upstream.
-2. **The form of the setting:** two booleans (recommended) or one free-text setting.
-3. **What the shadow record may carry:** counts and messages only, or the query and SQL texts too.
+1. **Where the packages are published** (registry, scope, who releases). *Settled in part on 2026-11-23:*
+   legend-studio upstream does not depend on them; it gets the hook, and a deployment publishes and registers
+   legend-lite's plugin.
+2. **The form of the setting.** *Settled:* one boolean per planner, which uses it.
+3. **What the shadow record may carry.** *Moot for phase 1:* there is no shadow mode.
 4. **Shim first or fixes first.** Recommended: the shim now, so legend-studio work does not wait on
    legend-lite, and G1 and G2 in parallel.
 5. **Where the legend-studio work lands:** upstream at FINOS, or a fork first.
@@ -543,14 +584,15 @@ legend-studio sends fails there.
 
 ## 7. What this plan has not verified
 
-*Updated 2026-11-20 for what has since been run.*
+*Updated 2026-11-20 and 2026-11-23 for what has since been run.*
 
 - **The app was run in its dev build only.** A production build, its deployment's server and its content
   security policy are untested.
 - **One browser.** Everything ran in Chrome 156. Firefox and Safari are M4's.
 - **Few query shapes against the engine.** The opening page, a sort, a horizontal pivot and a group by over the
-  pivot were compared with the engine's result on one 60-row file, all equal. Only the opening page was repeated
-  after the client became an engine server client.
+  pivot were compared with the engine's result on one 60-row file, all equal, while shadow mode existed. After the
+  split into a hook and a plugin, only the opening page was run, in use mode. A failure shown with the planner's
+  name, and the pivot-discovery query kept on the engine, were not re-run after the split.
 - **Spike 10 ran in Node 25**, with lambdas parsed by legend-lite, not built by DataCube.
 - **`//gates:local` was not run on M0's branch.** Its own test, the engine module's route test and the dependency
   and tooling guards were.

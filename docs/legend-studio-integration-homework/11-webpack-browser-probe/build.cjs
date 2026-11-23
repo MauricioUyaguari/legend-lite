@@ -1,13 +1,14 @@
 // Spike 11: builds main.js with legend-studio's own webpack, naming files as its production build does
 // (legend-dev-utils/WebpackConfigUtils.js), so the page can be served and `await window.probe()` run in a browser.
 //
-//   node build.cjs <legend-studio root, built> <package dir: bazel-bin/wasm/engine_planner_package> <out dir>
+//   node build.cjs <legend-studio root, built> <package dir: bazel-bin/wasm/engine_planner_package> \
+//     <plugin lib: wasm/data-cube-extension/lib, built with its tsconfig.build.json> <out dir>
 //   python3 -m http.server 8791 --bind 127.0.0.1 --directory <out dir>
 //
 // What it shows: the worker and the runtime are emitted as files of their own (minified, not bundled), the module
 // under a hashed name, and nothing of legend-lite is fetched before the first request.
 const path = require('path');
-const [studio, plannerPackage, out] = process.argv.slice(2).map((p) => path.resolve(p));
+const [studio, plannerPackage, pluginLib, out] = process.argv.slice(2).map((p) => path.resolve(p));
 const webpack = require(path.join(studio, 'node_modules/webpack'));
 const HtmlWebpackPlugin = require(path.join(studio, 'node_modules/html-webpack-plugin'));
 webpack({
@@ -22,7 +23,7 @@ webpack({
   },
   resolve: {
     alias: {
-      '@probe/planner': path.join(studio, 'packages/legend-application-data-cube/lib/stores/planner'),
+      '@probe/planner': pluginLib,
       // an exact-match alias per file the package exports, standing for an installed package
       '@legend-lite/planner-wasm/classes.wasm$': path.join(plannerPackage, 'classes.wasm'),
       '@legend-lite/planner-wasm/wasm-gc-module-runtime.js$': path.join(plannerPackage, 'wasm-gc-module-runtime.js'),

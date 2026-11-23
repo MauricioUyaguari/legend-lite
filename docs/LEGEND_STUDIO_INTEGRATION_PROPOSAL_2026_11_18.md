@@ -1,8 +1,10 @@
 # Integrating legend-lite into legend-studio's apps: a proposal (2026-11-18)
 
-**Status:** proposed, not ratified. Phase 1 is built and in two pull requests
-([neema2/legend-lite#120](https://github.com/neema2/legend-lite/pull/120) and
-[MauricioUyaguari/legend-studio#2](https://github.com/MauricioUyaguari/legend-studio/pull/2)); nothing is merged.
+**Status:** proposed, not ratified. Phase 1 is built and in two pull requests; nothing is merged.
+[MauricioUyaguari/legend-studio#2](https://github.com/MauricioUyaguari/legend-studio/pull/2) adds a generic planner
+hook to DataCube and no legend-lite code. [neema2/legend-lite#120](https://github.com/neema2/legend-lite/pull/120)
+holds legend-lite's engine module as a package and the plugin that contributes legend-lite as a planner. This document
+is the source of the proposal posted at https://github.com/finos/legend-studio/discussions/5930 (its first comment).
 Section 10 lists the decisions that are the user's.
 
 **Corrected on 2026-11-18**, after the first step was implemented
@@ -15,6 +17,12 @@ Section 7.1 says why.
 their own, so the package is that module; section 3 says so, and sections 4 and 5 give where the refusals are now
 raised and the module's size. And legend-lite's client became a subclass of `V1_EngineServerClient`; sections 7.0
 and 7.1 say so. The implementation plan has the details.
+
+**Corrected again on 2026-11-23.** legend-studio is released publicly, so its build cannot depend on a package that
+is not on the public registry. legend-lite's client, worker, model shim and pivot rule moved out of legend-studio into
+a plugin in the legend-lite repository, and legend-studio keeps a generic hook. Sections 6, 7.0 to 7.2, 10 and 11
+say so; 7.0 now has three diagrams. And the first step has no compare (shadow) mode: one setting uses the planner
+(7.3).
 
 **The question (the user, 2026-11-18):** the quickest path to integrate legend-lite into the apps of the
 legend-studio repository (Studio, Query, Taxonomy, Marketplace, DataCube), lowest risk first, reusing
@@ -37,10 +45,10 @@ Section 11 says what was not verified.
 - [5. The gaps found](#5-the-gaps-found)
 - [6. Where a second planner plugs into legend-studio](#6-where-a-second-planner-plugs-into-legend-studio)
 - [7. Phase 1 in detail](#7-phase-1-in-detail)
-  - [7.0 The design flow](#70-the-design-flow)
+  - [7.0 The design: three diagrams](#70-the-design-three-diagrams)
   - [7.1 Changes in legend-studio](#71-changes-in-legend-studio)
   - [7.2 Changes in legend-lite](#72-changes-in-legend-lite)
-  - [7.3 Shadow mode, which is how the risk is retired](#73-shadow-mode-which-is-how-the-risk-is-retired)
+  - [7.3 Shadow mode: not in phase 1](#73-shadow-mode-not-in-phase-1)
   - [7.4 What phase 1 does not do](#74-what-phase-1-does-not-do)
   - [7.5 How hard, honestly](#75-how-hard-honestly)
 - [8. Risks](#8-risks)
@@ -74,7 +82,7 @@ The recommended order, by risk:
 | Phase | What | Touches | Users affected |
 |---|---|---|---|
 | 0 | Package the planner; build a conformance corpus from legend-studio's own DataCube tests | Both repos, no app | None |
-| 1 | DataCube app: `generatePlan` for DuckDB-backed sources answered in the tab. Shadow mode first, then opt-in | `legend-application-data-cube` | DataCube, opt-in only |
+| 1 | DataCube app: `generatePlan` for DuckDB-backed sources answered in the tab, behind one opt-in setting | `legend-application-data-cube` | DataCube, opt-in only |
 | 2 | DataCube app: typing and grammar calls in the tab, so a cached cube needs no engine per click | Same package; three new routes in legend-lite | DataCube |
 | 3 | The in-tab execute path (the "wasm executor") | Same package; legend-lite | DataCube |
 | 4 | Grammar and typing routed to legend-lite for Query and Studio, by configuration | `legend-graph` (every app) | Query, Studio: per deployment |
@@ -231,8 +239,13 @@ which is the work the server team is doing. It is the last phase for that reason
 
 **Why seam A.** It is one method in one package that only one app loads. The answer it must produce is
 already defined (the engine's plan JSON), so the existing deserialization and SQL extraction are reused
-unchanged. And because both the engine and the planner answer the same request, a shadow comparison is
-nearly free (section 7).
+unchanged. And because both the engine and the planner answer the same request, one setting switches between
+them, and a comparison of the two stays possible (section 7.3).
+
+**As built (2026-11-23): seam A, reached through a plugin hook.** DataCube's application plugin gets
+`getExtraDuckDBQueryPlanners()`. The planner a plugin contributes hands DataCube an engine server client, so at
+seam A DataCube calls `generatePlan` on the engine's client or the planner's, the same way. legend-lite's client
+uses seam B inside itself: it is a subclass of `V1_EngineServerClient` whose `request()` asks the engine module.
 
 ---
 
@@ -241,9 +254,45 @@ nearly free (section 7).
 **Goal:** for a cached source, a local file or a cached Iceberg table, the SQL DataCube runs on its own
 DuckDB-WASM comes from the wasm planner instead of a round trip to the engine.
 
-### 7.0 The design flow
+### 7.0 The design: three diagrams
 
-Everything outside the two marked boxes exists today and is unchanged.
+Three diagrams, each a different kind of view of the same design:
+
+- **Where the code lives** (a component diagram): what is in this repository, what is in legend-lite, and how they meet.
+- **Which path a query takes** (a flowchart): the decisions a query goes through, and where each branch ends.
+- **What happens, in order, when legend-lite is in use** (a sequence diagram): who asks whom, what loads on the first query, and what a refusal looks like.
+
+In the first two, the shaded boxes are legend-lite's and live outside this repository; the boxes marked NEW are this repository's change; everything else exists today and is unchanged.
+
+#### Where the code lives
+
+This repository gets a generic hook and no legend-lite code. legend-lite's planner arrives as a plugin that a deployment registers, built from the legend-lite repository and published by that deployment.
+
+```mermaid
+flowchart TB
+    subgraph studio["legend-studio (this repository)"]
+        HOOK["NEW: plugin hook getExtraDuckDBQueryPlanners()<br/>and one setting per planner: use it"]
+        DC["DataCube engine class<br/>_generateExecutionPlan"]
+        DUCK[("DuckDB-WASM<br/>in the tab")]
+    end
+    subgraph lite["legend-lite (published by a deployment)"]
+        PLUG["@legend-lite/data-cube-extension<br/>the plugin: client, model shim, pivot rule"]
+        PKG["@legend-lite/planner-wasm<br/>the engine module and its runtime"]
+    end
+    W["Worker in the tab, started on first use:<br/>the engine module answers pure/v1 generatePlan"]
+    ENG["Legend engine (server)"]
+    PLUG -- "contributes a planner" --> HOOK
+    HOOK -- "the setting selects" --> DC
+    DC -- "generatePlan, by default" --> ENG
+    DC -- "generatePlan, setting on" --> PLUG
+    PLUG -- "one message per request" --> W
+    PKG -. "loaded into" .-> W
+    DC -- "runs the plan's SQL" --> DUCK
+    classDef plugin fill:#EEEDFE,stroke:#534AB7,color:#3C3489
+    class PLUG,PKG,W plugin
+```
+
+#### Which path a query takes
 
 ```mermaid
 flowchart TD
@@ -251,44 +300,54 @@ flowchart TD
     B --> C{"DuckDB-backed source?"}
     C -- "No: Legend Query, function, lakehouse" --> E1["Engine execute, unchanged"]
     C -- "Yes: cached, local file, cached Iceberg" --> D["_generateExecutionPlan builds the input:<br/>function, model, context, clientVersion"]
-    D --> S{"Planner setting"}
-    S -- "engine (default)" --> ENG["POST execution/generatePlan<br/>to the engine"]
-    S -- "legend-lite" --> P{"Pivot with no cast?"}
-    P -- "Yes: fixed routing rule" --> ENG
-    P -- "No" --> SHIM["NEW: adjust the model<br/>(temporary shim for G1, G2)"]
-    SHIM --> W["NEW: planner worker answers<br/>pure/v1 execution/generatePlan<br/>in the tab (WebAssembly)"]
+    D --> S{"NEW: is a planner in use?<br/>contributed by a plugin, its setting on"}
+    S -- "No (default)" --> ENG["POST execution/generatePlan<br/>to the engine"]
+    S -- "Yes" --> P{"NEW: does the planner take this query?<br/>legend-lite: not a pivot with no cast"}
+    P -- "No: fixed rule, not a fallback" --> ENG
+    P -- "Yes" --> CL["NEW: the planner's client.generatePlan<br/>same input, same method"]
+    CL --> SHIM["legend-lite's plugin: adjust the model<br/>(temporary, G1 and G2)"]
+    SHIM --> W["legend-lite's plugin: its worker answers<br/>pure/v1 execution/generatePlan<br/>in the tab (WebAssembly)"]
     W -- "200" --> PLAN["Plan JSON,<br/>the engine's shape"]
-    W -- "refusal" --> ERR["Shown to the user,<br/>naming the planner"]
+    W -- "refusal" --> ERR["Shown to the user,<br/>prefixed with the planner's name"]
     ENG --> PLAN
     PLAN --> X["V1_deserializeExecutionPlan,<br/>then sqlQuery of the sql node"]
     X --> DB["runSQLQuery on DuckDB-WASM"]
     DB --> R["Rows to the grid"]
+    classDef plugin fill:#EEEDFE,stroke:#534AB7,color:#3C3489
+    class SHIM,W plugin
 ```
 
-In `shadow`, the engine's branch above runs exactly as in `engine`, and this happens afterwards, off the
-user's path:
+#### What happens, in order, when legend-lite is in use
+
+The first step has no compare mode (decided 2026-11-23): with the setting on, legend-lite plans the queries it takes, and nothing runs the engine's plan beside it.
 
 ```mermaid
 sequenceDiagram
     autonumber
     participant G as DataCube engine class<br/>(tab)
-    participant E as Legend engine<br/>(server)
-    participant P as Planner worker<br/>(tab, WebAssembly)
+    participant P as legend-lite's plugin<br/>(its client, in the tab)
+    participant W as Worker<br/>(engine module, WebAssembly)
     participant D as DuckDB-WASM<br/>(tab)
-    G->>E: generatePlan (the input)
-    E-->>G: plan
-    G->>D: the engine's SQL
-    D-->>G: rows
-    Note over G: the grid is drawn from these rows.<br/>The user waits for nothing below.
-    G->>P: generatePlan (the same input)
-    alt the planner answers
-        P-->>G: plan
-        G->>D: the planner's SQL
+    participant E as Legend engine<br/>(server)
+    G->>E: grammar and typing calls, as today
+    Note over G: the setting is on,<br/>and the planner takes this query
+    G->>P: generatePlan (the input)
+    opt first query only
+        P->>P: load the assets file (dynamic import)
+        P->>W: start the worker, load the module
+    end
+    P->>P: adjust the model (temporary shim, G1 and G2)
+    P->>W: pure/v1 execution/generatePlan
+    alt legend-lite plans it
+        W-->>P: 200, plan JSON
+        P-->>G: the plan, as the engine would return it
+        G->>D: the plan's SQL
         D-->>G: rows
-        Note over G: compare the two results,<br/>record match or difference
-    else the planner refuses
-        P-->>G: refusal
-        Note over G: record the refusal and its message
+        Note over G: the grid is drawn
+    else legend-lite refuses
+        W-->>P: error status and message
+        P-->>G: NetworkClientError
+        Note over G: shown as "[legend-lite] message",<br/>not retried on the engine
     end
 ```
 
@@ -297,50 +356,55 @@ The pieces, and where each lives:
 | Piece | Where | New? |
 |---|---|---|
 | The input (`function`, `model`, `context`, `parameterValues`, `clientVersion`) | `_generateExecutionPlan`, `LegendDataCubeDataCubeEngine.ts:1718` | No |
-| Two settings giving three modes (`engine`, `shadow`, `legend-lite`) | `LegendDataCubeBaseStore.settings`, beside the two debugger settings there | Yes |
-| The routing rule (a pivot with no cast goes to the engine) | In the branch | Yes, temporary (G3) |
-| The model shim | In legend-lite's client | Yes, temporary (G1, G2) |
-| legend-lite's client, a subclass of `V1_EngineServerClient`, and its worker | `legend-application-data-cube` | Yes |
-| The module and its runtime (`classes.wasm`, `wasm-gc-module-runtime.js`) | Static assets, loaded on first use | Yes |
+| The hook, `getExtraDuckDBQueryPlanners()`, and the planner contract | `LegendDataCubeApplicationPlugin`, `stores/planner/` | Yes |
+| One setting per contributed planner (use it) | `LegendDataCubeBaseStore.settings`, beside the two debugger settings there | Yes |
+| The routing rule (a pivot with no cast goes to the engine) | legend-lite's plugin, as the planner's `isQuerySupported` | Yes, temporary (G3) |
+| The model shim | legend-lite's plugin, in its client | Yes, temporary (G1, G2) |
+| legend-lite's client, a subclass of `V1_EngineServerClient`, and its worker | legend-lite's plugin, `@legend-lite/data-cube-extension`, in the legend-lite repository | Yes |
+| The module and its runtime (`classes.wasm`, `wasm-gc-module-runtime.js`) | The package `@legend-lite/planner-wasm`; emitted by the deployment's build, loaded on first use | Yes |
 | Plan deserialization and SQL extraction | `LegendDataCubeDataCubeEngine.ts:1071-1078` | No |
 | `runSQLQuery` and the conversion to a TDS result | `LegendDataCubeDuckDBEngine.ts` | No |
-| The comparison and its record | In the engine class, through DataCube's telemetry hooks | Yes |
 
 ### 7.1 Changes in legend-studio
 
-All in `packages/legend-application-data-cube`, plus asset wiring in its deployment package.
+All in `packages/legend-application-data-cube`, and none of it names legend-lite
+([MauricioUyaguari/legend-studio#2](https://github.com/MauricioUyaguari/legend-studio/pull/2)).
 
-1. **legend-lite's client and its worker** (new). The client is a subclass of `V1_EngineServerClient` that
-   overrides `request()`, the one method every method of that class ends in, to ask the engine module instead
-   of a server. Every method keeps its name, input, output and errors (`NetworkClientError`), and nothing is
-   ever sent to a server. Under it, a small worker, owned by legend-studio, loads the module from the two URLs
-   it is given and answers one `pure/v1` request per message. legend-lite's own `planner-worker.js` is not
-   used: it finds the module by fixed file names beside a base URL, and legend-studio's build emits assets
-   under hashed names.
-2. **Assets:** two files from legend-lite, `classes.wasm` and `wasm-gc-module-runtime.js`, emitted by the
-   build. The shared webpack config already emits `.wasm` as a resource and the package already loads
-   DuckDB's worker with `new URL(..., import.meta.url)`, so no new mechanism is needed. Load the module
-   lazily: only when a setting is on and a DuckDB-backed source is opened.
-3. **Two settings.** DataCube already has persisted settings with a reload flag
-   (`LegendDataCubeBaseStore.settings`, two entries today). Add two boolean settings, both off by default,
-   giving three modes: `engine` (default), `shadow`, `legend-lite`. DataCube's settings have no enumerated
-   type, and adding one would change `legend-data-cube`, which Query also loads.
-4. **The branch.** In `_generateExecutionPlan`, when the setting says so, call `generatePlan` with the same
-   input object on legend-lite's client instead of the engine's, and hand its answer to the same
-   `V1_deserializeExecutionPlan`.
-5. **A temporary shim** for G1 and G2, until legend-lite fixes them: before sending, move the embedded
-   connection into its own `connection` element, point the runtime at it, and add
-   `postProcessorWithParameter: []`. A pure JSON transform of about 20 lines, verified by spike 04.
-   Alternative with the same effect: send the model as Pure text (spike 06).
-6. **A routing rule for the cast-less pivot (G3):** that one query shape stays on the engine until
-   legend-lite answers it. It is a fixed rule by query shape, written down and shown, not a fallback on
-   failure.
-7. **Tests.** DataCube's DuckDB path has no test coverage today and its jest setup mocks DuckDB entirely.
-   Add tests for the client's unfolding, the shim, and the branch, with the worker mocked.
+1. **The hook.** `LegendDataCubeApplicationPlugin.getExtraDuckDBQueryPlanners()` returns planners for
+   DuckDB-backed sources. A planner is a `key`, a `label`, `createEngineServerClient()` (called once, when the
+   planner is first asked) and an optional `isQuerySupported(query)`, a fixed rule by the shape of the query.
+   `LegendDataCubeApplicationPlugin` and the planner types are exported from the package; the plugin class was not
+   exported before, so no plugin outside the package could extend it.
+2. **One setting per planner**, off by default, that uses it. Among planners whose setting is on, the first
+   contributed wins. With none contributed, there is no setting.
+3. **The branch.** In `_generateExecutionPlan`, call `generatePlan` with the same input object on the selected
+   planner's client instead of the engine's, and hand its answer to the same `V1_deserializeExecutionPlan`. A
+   failure is shown with the planner's label in front. Nothing falls back to the engine.
+4. **Tests**, with a stand-in planner registered through the real plugin manager.
+
+Nothing from legend-lite: no package, no asset, no worker.
 
 ### 7.2 Changes in legend-lite
 
-None are required to start. These make the shim and the routing rule unnecessary, in priority order:
+**The plugin**, built, in [neema2/legend-lite#120](https://github.com/neema2/legend-lite/pull/120) at
+`wasm/data-cube-extension` (`@legend-lite/data-cube-extension`):
+
+1. **legend-lite's client**, a subclass of `V1_EngineServerClient` that overrides `request()`, the one method every
+   method of that class ends in, to ask the engine module instead of a server. Every method keeps its name, input,
+   output and errors (`NetworkClientError`), and nothing is ever sent to a server.
+2. **Its worker**, which loads the module from the two URLs it is given and answers one `pure/v1` request per
+   message, and the one file that names the module's files, loaded by a dynamic `import()` on first use.
+3. **The temporary shim** for G1 and G2: before sending, move the embedded connection into its own `connection`
+   element, point the runtime at it, and add `postProcessorWithParameter: []`.
+4. **The routing rule** for the cast-less pivot (G3), as the planner's `isQuerySupported`.
+5. **A guide** to publishing both packages to a private registry and registering the plugin in a deployment, with
+   the bundling and serving requirements (`.wasm` as `application/wasm`, same origin, the content security policy).
+
+**The package** `@legend-lite/planner-wasm` (`//wasm:engine_planner_package`, the same pull request): the engine
+module and its runtime, as a directory an npm client reads. Publishing it is open (section 10).
+
+**Changes to legend-lite's compiler.** None are required to start. These make the shim and the routing rule
+unnecessary, in priority order:
 
 1. **G1 and G2:** accept an absent `postProcessorWithParameter`, and plan over a runtime's embedded
    relational connection. Both are the server team's kind of work, and both also block any other
@@ -349,9 +413,12 @@ None are required to start. These make the shim and the routing rule unnecessary
 3. **G5:** ask the engine whether `$x.col * 2` compiles on a nullable column, and match it.
 4. **G3:** for a DuckDB target, answer the cast-less pivot as one runnable statement in the
    engine-shaped plan.
-5. **G12:** publish the module and its runtime as a versioned artifact (phase 0).
 
-### 7.3 Shadow mode, which is how the risk is retired
+### 7.3 Shadow mode: not in phase 1
+
+*Decided on 2026-11-23: the first step has no shadow (compare) mode. The setting uses legend-lite's planner, and
+nothing runs the engine's plan beside it. What follows is the design, kept for a later step if maintainers want one;
+an earlier draft of the pull request had it, with five telemetry events.*
 
 In `shadow`, DataCube asks both planners. The engine's SQL is the one that runs and the one the user sees.
 The planner's SQL is then run on the same local DuckDB and the two results compared; a difference or a
@@ -380,10 +447,10 @@ My estimates, assuming one engineer who knows each codebase:
 | Phase 0: artifact and a first corpus lane | About a week |
 | Phase 1 in legend-studio: client, assets, setting, branch, shim, tests | One to two weeks |
 | Phase 1 in legend-lite: G1, G2, G4 | Days each, plus the upstream-fidelity checks legend-lite's rules require |
-| Shadow mode running before opt-in | As long as it takes to see real usage; a few weeks |
+| Opt-in use before the setting is offered more widely | As long as it takes to see real usage; a few weeks |
 
 The engineering is small. What takes time is being sure the SQL means the same thing, which is what phase
-0 and shadow mode are for.
+0's corpus and differential are for.
 
 ---
 
@@ -391,7 +458,7 @@ The engineering is small. What takes time is being sure the SQL means the same t
 
 | Risk | Why it matters | Mitigation |
 |---|---|---|
-| **Same query, different rows** | legend-lite's SQL text differs from the engine's by design; its parity tests compare rows, on its own DuckDB version | Phase 0 corpus; shadow mode comparing rows on the user's own DuckDB |
+| **Same query, different rows** | legend-lite's SQL text differs from the engine's by design; its parity tests compare rows, on its own DuckDB version | Phase 0 corpus and differential. The setting is opt-in, so a difference reaches only users who chose it |
 | **DuckDB version skew (G11)** | legend-lite records real version sensitivities (a `first()` shape on 1.5.0, an ASOF join on 1.4.4). Its SQL is untested on the DuckDB inside `duckdb-wasm` 1.31.0 | Run the corpus on legend-studio's pinned version. Consider aligning the pins; that is a DataCube-wide change and a decision (section 10) |
 | **Session time zone** | legend-lite's SQL assumes `SET TimeZone='UTC'`; `today()` and `now()` become `current_date` and `now()`. DataCube's DuckDB keeps the browser's zone | Apply the planner's `sessionSetup` to DataCube's DuckDB, or confirm the engine's SQL has the same dependence |
 | **Browser support** | The module needs WebAssembly GC and the newer exception-handling opcodes. A managed browser baseline may lag | Check the supported-browser baseline before phase 1. The setting stays off where unsupported |
@@ -465,11 +532,13 @@ The phases above are the recommended path. These were also considered. None is a
 2. **Fallback policy.** Recommended: none in `legend-lite` mode; a refusal is shown. The alternative, fall
    back to the engine on any refusal, is safer for a user in the moment and hides exactly the gaps this
    work is meant to find.
-3. **Shim or fix.** Start with the legend-studio shim now, or wait for G1 and G2 in legend-lite.
-4. **Distribution.** An npm package, a release artifact, or files copied into legend-studio; and who owns
-   the release.
-5. **Where the code lands.** legend-studio upstream at FINOS, or a fork. A FINOS repository taking a
-   dependency on an unpublished, non-FINOS module is a governance question as much as a technical one.
+3. **Shim or fix.** The shim is built, in legend-lite's plugin; whether to remove it by fixing G1 and G2 in
+   legend-lite, and when.
+4. **Distribution.** Two npm packages, the engine module and the plugin, built from the legend-lite repository.
+   Which registry, which scope, and who releases them are open; the plugin's guide has the steps.
+5. **Where the code lands.** *Proposed answer (2026-11-23):* legend-studio upstream at FINOS gets the generic hook
+   alone, and takes no dependency on legend-lite; the plugin lives in the legend-lite repository and a deployment
+   registers it. Whether maintainers accept the hook is the open part.
 6. **DuckDB alignment.** Whether to move legend-studio's `duckdb-wasm` pin toward legend-lite's.
 7. **Server team priorities.** Whether G1, G2, G4, G5 and the three routes of phase 2 go to the front of
    their queue.
@@ -477,6 +546,14 @@ The phases above are the recommended path. These were also considered. None is a
 ---
 
 ## 11. What was not verified
+
+**Since the spikes (2026-11-20 to 2026-11-23):** phase 1 was built and run in legend-studio's DataCube dev app,
+against a running engine, in Chrome, on a local CSV file. With legend-lite in use, the grid was drawn and no
+`generatePlan` reached the engine (re-run on 2026-11-23 with the one setting). An earlier draft, with a compare mode,
+also found legend-lite's result on DuckDB matching the engine's.
+Not verified: a production build, Firefox and Safari, a cached source or cached Iceberg table, the packages installed
+from a registry, and, since the split, a failure shown with the planner's name and the pivot-discovery query kept on
+the engine. The list below is what the spikes did not verify, as written on 2026-11-18.
 
 - **No SQL was executed.** No DuckDB was available where the spikes ran. Every "plans" above means the
   planner produced SQL, not that the SQL returned the right rows, on either DuckDB version.
