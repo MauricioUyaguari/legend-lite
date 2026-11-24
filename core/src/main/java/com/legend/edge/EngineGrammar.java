@@ -17,7 +17,8 @@ public final class EngineGrammar {
 
     /** A model's text as its protocol JSON, as legend-engine's {@code grammarToJson/model} answers it. */
     public static String documentJson(String text, boolean sourceInformation) {
-        String json = com.legend.door.Parse.engineDocumentJson(text);
+        // a relational connection's time zone as 4.152.x writes it (T5 of Studio's local mode, 2026-11-24)
+        String json = EngineTimeZones.asWritten(com.legend.door.Parse.engineDocumentJson(text));
         return sourceInformation ? json : EngineSpans.withoutSpans(json);
     }
 
