@@ -1,6 +1,7 @@
 # Legend Studio's local mode: engine calls answered by legend-lite's WebAssembly compiler (a plan, 2026-11-23)
 
-**Status:** proposed. Nothing in it is built yet. The probes in section 4 were run on 2026-11-23. Their scripts and
+**Status:** the user accepted P1 to P7 on 2026-11-23, with option (a) for P2 (2.2). Two sessions started that
+day: PR 1 in legend-studio, and phase 0 in legend-lite. Nothing is merged. The probes in section 4 were run on 2026-11-23. Their scripts and
 outputs are in [`legend-studio-text-mode-homework/`](legend-studio-text-mode-homework/README.md).
 
 **What changed (the user, 2026-11-23).**
@@ -75,15 +76,16 @@ the answer given for text mode.
 | 6 | How it reaches a deployment | Through the published packages. A deployment that builds Studio from the published `@finos` packages can use only a hook that is merged and released. legend-lite's packages are not on a public registry, so the deployment publishes them itself and loads legend-lite through a plugin it registers |
 | 7 | The DataCube work | Parked. The discussion is reworded around Studio |
 
-### 2.2 Proposed here, for the user to rule
+### 2.2 Proposed here, and accepted by the user on 2026-11-23
 
-Each of these refines the direction above. Sections 5 to 7 give the details.
+Each of these refines the direction above. The user accepted all seven, choosing (a) for P2: phase 1 starts with
+parse and compose, and compile is added by configuration once T1 and T12 land. Sections 5 to 7 give the details.
 
 - **P1. The set of local calls is configuration, not code.** The plugin declares which calls it answers. The
   deployment's configuration lists which of them go local. Studio routes a call locally only if both say so. Adding a
   call is then a configuration change plus legend-lite's support, with no Studio release. Under this, the plugin
   doesn't have to implement a fixed set of three; legend-lite's will implement all three.
-- **P2. Compile is not ready, so phase 1's first set is a choice.**
+- **P2. Compile is not ready, so phase 1's first set is a choice. The user chose (a).**
   - Today legend-lite refuses any compile request that includes the project's dependencies (T1). That is almost
     every real project.
   - Its compile errors also don't return the `sourceId` that form mode uses to place them (T12). A form-mode compile
