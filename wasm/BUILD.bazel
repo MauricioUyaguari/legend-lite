@@ -298,9 +298,24 @@ node_test(
     name = "engine_worker_test",
     engine = True,
     size = "medium",
-    data = glob(["engine-worker/src/*.ts"]) + ["engine_worker_shim.mjs"],
+    data = glob(["engine-worker/src/*.ts"]) + ["engine_worker_host.mjs", "engine_worker_shim.mjs"],
     entry_point = "engine_worker.mjs",
     # the package's TypeScript is loaded as written: its enums need the transform, not only the stripping
+    node_options = ["--experimental-transform-types"],
+)
+
+# LEGEND-LITE AS LEGEND STUDIO'S LOCAL ENGINE (@legend-lite/studio-extension, Studio's local mode, 2026-11-24): the
+# plugin's engine, asked as Studio's local-mode router asks one, over the package's worker and the engine module; a
+# model round Studio's text mode (parse, compose, parse again) and compiled, each answer the module's own.
+node_test(
+    name = "studio_local_engine_test",
+    engine = True,
+    size = "medium",
+    data = glob(["engine-worker/src/*.ts", "studio-extension/src/*.ts"]) + [
+        "engine_worker_host.mjs",
+        "engine_worker_shim.mjs",
+    ],
+    entry_point = "studio_local_engine.mjs",
     node_options = ["--experimental-transform-types"],
 )
 
