@@ -292,6 +292,18 @@ node_test(
     entry_point = "product_module.mjs",
 )
 
+# THE ENGINE MODULE IN A WORKER (@legend-lite/engine-worker, split from neema2/legend-lite#120 for Studio's local mode,
+# 2026-11-24): the package's transport and worker file, as a host runs them, held to the module's own answers.
+node_test(
+    name = "engine_worker_test",
+    engine = True,
+    size = "medium",
+    data = glob(["engine-worker/src/*.ts"]) + ["engine_worker_shim.mjs"],
+    entry_point = "engine_worker.mjs",
+    # the package's TypeScript is loaded as written: its enums need the transform, not only the stripping
+    node_options = ["--experimental-transform-types"],
+)
+
 node_test(
     name = "engine_routes_test",
     engine = True,
