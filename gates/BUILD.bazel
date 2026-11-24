@@ -388,6 +388,14 @@ test_suite(
         # before the split (K2, 2026-11-18); found in no lane by CI's lane guard on PR #118 (PR #118 fix round, 2026-11-18)
         "//wasm:product_module_test",
         "//wasm:engine_routes_test",
+        # 2026-11-24 (Studio's local mode, phase 0): the engine module in a worker, through @legend-lite/engine-worker's
+        # transport and worker file (split from neema2/legend-lite#120)
+        "//wasm:engine_worker_test",
+        # 2026-11-24 (Studio's local mode, phase 0): legend-lite as Studio's local engine, @legend-lite/studio-extension
+        "//wasm:studio_local_engine_test",
+        # the engine module as a package (neema2/legend-lite#120's //wasm:engine_planner_package), which the worker's
+        # package depends on; found in no lane by the lane guard's query on this branch (2026-11-24)
+        "//wasm:engine_planner_package_test",
         "//wasm:zone_test",
         # TeaVM's class library against the JDK's, held to its ledger of known differences (seconds)
         "//wasm:conformance_test",

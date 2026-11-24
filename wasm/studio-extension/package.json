@@ -1,0 +1,32 @@
+{
+  "name": "@legend-lite/studio-extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A Legend Studio plugin which contributes legend-lite as Studio's local engine: legend-lite's engine module (@legend-lite/planner-wasm, in a worker through @legend-lite/engine-worker) answers parse, compose and compile in the browser instead of the engine server, where the deployment turns local mode on.",
+  "license": "Apache-2.0",
+  "sideEffects": false,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "module": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "files": [
+    "lib",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc --project ./tsconfig.build.json",
+    "clean": "rimraf lib build"
+  },
+  "dependencies": {
+    "@legend-lite/engine-worker": "0.1.0"
+  },
+  "peerDependencies": {
+    "@finos/legend-application-studio": "*"
+  }
+}
