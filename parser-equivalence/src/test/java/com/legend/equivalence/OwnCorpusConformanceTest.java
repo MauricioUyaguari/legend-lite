@@ -97,6 +97,13 @@ class OwnCorpusConformanceTest {
             // (DataQualityAdditionalColumnsTest). Retires when the pin reaches 4.148.0.
             return "BUILT-AHEAD-dq-additional-columns-to-persist";
         }
+        if (builtAheadFunctionDataReference(text)) {
+            // BUILT AHEAD of the 4.145.0 pin, 2026-11-24 (REVIEWED: T5 of Studio's local mode, phase 1 aligned to
+            // 4.152.x by the user's ruling of 2026-11-23; docs/SEMANTICS_REGISTER.md S428): legend-engine 4.151.4's
+            // bare reference to a Data element in a function test's data (functionDataReference, e8c9d85613), which
+            // the pinned referee's grammar lacks (EngineJsonAlignmentTest). Retires when the pin reaches 4.151.4.
+            return "BUILT-AHEAD-function-test-data-reference";
+        }
         if (msg.contains("Unsupported column data type 'TIMESTAMP_NS'")) {
             // the TIMESTAMP_NS column type (2026-11-13, REVIEWED, the final
             // audit's item 2; docs/SEMANTICS_REGISTER.md S64): a lite
@@ -156,6 +163,22 @@ class OwnCorpusConformanceTest {
 
     /** The key line is the referee's ONLY refusal: the 4.145.0 referee answers a bare "Unexpected token" at it, so the
      *  proof is that the text without its {@code additionalColumnsToPersist: [...];} lines parses on the referee. */
+    /** Whether {@code text} is refused by the pinned reference only for 4.151.4's bare Data-element references in a
+     *  function test's data ({@code my::Data;} on a line of its own): without those lines it parses there. */
+    static boolean builtAheadFunctionDataReference(String text) {
+        java.util.regex.Pattern reference = java.util.regex.Pattern.compile(
+                "(?m)^[ \\t]*[A-Za-z_][A-Za-z0-9_]*(::[A-Za-z_][A-Za-z0-9_]*)+;[ \\t]*\\n");
+        if (!reference.matcher(text).find()) {
+            return false;
+        }
+        try {
+            PureGrammarParser.newInstance().parseModel(reference.matcher(text).replaceAll(""));
+            return true;
+        } catch (Throwable stillRefused) {
+            return false;
+        }
+    }
+
     static boolean builtAheadDqAdditionalColumns(String text) {
         if (!text.contains("additionalColumnsToPersist:")) {
             return false;
@@ -265,6 +288,9 @@ class OwnCorpusConformanceTest {
                 // 0 -> 1 (2026-11-16, REVIEWED, the Studio roundtrip's post-pin constructs, the user's "Build ahead,
                 // ledgered"; S422): DataQualityAdditionalColumnsTest's model, 4.148.0's key the 4.145.0 referee refuses
                 Map.entry("BUILT-AHEAD-dq-additional-columns-to-persist", 1),
+                // 0 -> 1 (2026-11-24, REVIEWED, T5 of Studio's local mode, S428): EngineJsonAlignmentTest's function
+                // test data naming a Data element, 4.151.4's grammar
+                Map.entry("BUILT-AHEAD-function-test-data-reference", 1),
                 // 13 -> 15 (2026-08-21, REVIEWED): the D4 variance pins
                 // (VarianceD4Test, extension host declared in
                 // OwnDialectCensusTest) — the contravariance spec cannot

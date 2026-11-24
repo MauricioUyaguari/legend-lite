@@ -38,6 +38,21 @@ final class FunctionTestReader {
      */
     private static Protocol.PTestData testData(Json.Node node) {
         Wire d = Wire.of(node, "function test data");
+        if (d.has("_type")) {
+            // legend-engine 4.151.4's data resolver (e8c9d85613, Function.FunctionDeserializer: a node with a _type is
+            // a DataResolver, one without the older FunctionTestData), the pointer under elementPointer
+            String kind = d.str("_type");
+            if (!kind.equals("baseDataResolver") && !kind.equals("referenceDataResolver")) {
+                throw Wire.refuse("function test data of type '" + kind
+                        + "' (legend-engine's are baseDataResolver and referenceDataResolver)");
+            }
+            Wire ptr = Wire.of(d.take("elementPointer"), "element pointer");
+            String path = ptr.str("path");
+            SourceInfo pointerSpan = ptr.span();
+            String type = ptr.done(ptr.optStr("type"));
+            Protocol.PTestPayload data = kind.equals("baseDataResolver") ? payload(d.take("data")) : null;
+            return d.done(new Protocol.PTestData(path, pointerSpan, data, type, d.span()));
+        }
         Json.Node older = d.opt("store");
         Json.Node current = d.opt("packageableElementPointer");
         if (older != null && current != null) {

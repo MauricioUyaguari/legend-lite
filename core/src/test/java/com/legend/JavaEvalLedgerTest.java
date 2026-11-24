@@ -1941,6 +1941,10 @@ class JavaEvalLedgerTest {
                             // Studio's local mode): lite's parser's line and column spelled as the engine's span, the
                             // token's length by the engine's lexer rules; spells a failure's place, decides nothing
                             "ParseErrorPlace.java",
+                            // a relational connection's time zone as legend-engine 4.152.x writes it (2026-11-24, T5 of
+                            // Studio's local mode, the user's "Edge re-spells", S424): the product's bare id written as
+                            // the grammar token, quotes and all; re-spells one value, decides nothing
+                            "EngineTimeZones.java",
                             // legend-engine's grammar where the edge reads its protocol (J21 of the edge audit,
                             // 2026-11-17, the user's "yes to the rule"): three delegations to the parse door's engine
                             // entries; parses, decides nothing

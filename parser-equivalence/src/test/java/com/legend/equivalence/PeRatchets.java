@@ -236,7 +236,13 @@ public final class PeRatchets {
                     + " S21, S90 and S395 classes and mapping -- match the reference grammar; measured by"
                     + " //parser-equivalence:update_ratchets; a floor rising, UP)",
             "own_corpus.matched 3508 -> 3510 (2026-11-24, T3's review round: EngineRefusalsTest's body model, a::A and"
-                    + " a::f, matches the reference grammar; measured by //parser-equivalence:update_ratchets; UP)");
+                    + " a::f, matches the reference grammar; measured by //parser-equivalence:update_ratchets; UP)",
+            "own_corpus.matched 3502 -> 3504 (2026-11-24, T4 and T5 of Studio's local mode: EngineJsonAlignmentTest's"
+                    + " models -- the signed function test values and the connection with its time zone -- match the"
+                    + " reference grammar; measured by //parser-equivalence:update_ratchets; a floor rising, UP)",
+            "own_corpus.matched 3510/3504 -> 3512 (2026-11-24, the phase-0 integration branch: T2, T3, T4 and T5"
+                    + " merged; their tests' models together, re-measured by //parser-equivalence:update_ratchets on the"
+                    + " merged tree, not added)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

@@ -2906,10 +2906,13 @@ public final class Protocol {
      *  and friends). {@code pointerType} is non-null only for the marked
      *  form {@code (dataspace) my::DS: ...} — the wire gains
      *  {@code "type":"DATASPACE"} on the pointer (ZTailProbe
-     *  "dataspace-testref"); the plain store form emits no type key. */
+     *  "dataspace-testref"); the plain store form emits no type key. Written as legend-engine 4.151.4 and later
+     *  write it, a data resolver ({@code DataResolver}, e8c9d85613): a {@code baseDataResolver}, its pointer under
+     *  {@code elementPointer} -- or, with no {@code data}, a {@code referenceDataResolver}: a bare {@code my::Data;}
+     *  line naming a Data element (T5 of Studio's local mode, 2026-11-23). */
     public record PTestData(String storePath,
                             @com.legend.base.Nullable com.legend.protocol.SourceInfo storeSpan,
-                            PTestPayload data,
+                            @com.legend.base.Nullable PTestPayload data,
                             @com.legend.base.Nullable String pointerType,
                             @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
         /** The plain store form every pre-dataspace caller builds. */

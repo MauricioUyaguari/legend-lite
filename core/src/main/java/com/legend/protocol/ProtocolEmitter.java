@@ -1412,9 +1412,17 @@ public final class ProtocolEmitter {
                 b.append(',');
             }
             Protocol.PTestData d = s.testData().get(i);
-            b.append("{\"data\":");
-            testPayload(b, d.data());
-            b.append(",\"packageableElementPointer\":{\"path\":");
+            if (d.data() == null) {
+                // a reference to a Data element, which only legend-engine 4.151.4's data resolvers spell
+                // (e8c9d85613; T5 of Studio's local mode, 2026-11-23)
+                b.append("{\"_type\":\"referenceDataResolver\",\"elementPointer\":{\"path\":");
+            } else {
+                // the pinned 4.145.0's shape, which Studio writes too: 4.151.4 writes a baseDataResolver, with its
+                // pointer under elementPointer, read alike (docs/SEMANTICS_REGISTER.md S428)
+                b.append("{\"data\":");
+                testPayload(b, d.data());
+                b.append(",\"packageableElementPointer\":{\"path\":");
+            }
             str(b, d.storePath());
             b.append(",\"sourceInformation\":");
             srcInfo(b, d.storeSpan());
