@@ -123,6 +123,14 @@ class EdgeOnlyMembersTest {
                     "2026-11-18: a typed call to the platform's string::plus, lite's own building block (the orchestrator's ruling)"),
             Map.entry("com.legend.builtin.NativeFn$OperatorRun#fqn()",
                     "2026-11-18: an operator run's platform name, lite's own (the orchestrator's ruling)"),
+            // proposed 2026-11-23 for the user's word (T2 of Studio's local mode, docs/LEGEND_STUDIO_TEXT_MODE_PLAN_2026_11_23.md):
+            // a parse error's line and column, the position lite's parser states as data (its message's [line:col] lead
+            // and lite's API's where are spelled from them); the edge's ParseErrorPlace writes them as legend-engine's
+            // sourceInformation
+            Map.entry("com.legend.parser.ParseException#line()",
+                    "2026-11-23: a parse error's line, lite's parser's own fact (T2 of Studio's local mode; proposed for the user's word)"),
+            Map.entry("com.legend.parser.ParseException#column()",
+                    "2026-11-23: a parse error's column, lite's parser's own fact (T2 of Studio's local mode; proposed for the user's word)"),
             // ruled READ_API by the orchestrator (2026-11-18, ~07:20, on E-Java's proposal): the product judge's own total
             // order (pure's sort(): numbers, strings, booleans, temporals), a public face over Equality.sorted that the
             // product's PureAssertsTest reads too; the edge's EdgeHostWords sorts assertSameElements' words by it

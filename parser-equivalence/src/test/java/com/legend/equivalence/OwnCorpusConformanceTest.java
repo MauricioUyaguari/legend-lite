@@ -305,7 +305,9 @@ class OwnCorpusConformanceTest {
                 // test::pick of key:All) and SignatureMangleTest's fixture of the same two
                 Map.entry("PURE-DIALECT-generics", 12),
                 Map.entry("DIALECT-milestoning-range", 1),
-                Map.entry("ENGINE-TEST-SCOPED-section", 1),
+                // 1 -> 3 (2026-11-23, REVIEWED, T2 of Studio's local mode): ParseErrorPlaceTest's two texts with a
+                // section no parser knows, built to refuse (its place, legend-engine's sourceInformation)
+                Map.entry("ENGINE-TEST-SCOPED-section", 3),
                 Map.entry("LITE-DESIGN-inline-association", 2),
                 // 0 -> 1 (IQ island, 2026-10-14, REVIEWED): the model whose
                 // function is an #IQ{...}# island (IqIslandRoundTripTest)

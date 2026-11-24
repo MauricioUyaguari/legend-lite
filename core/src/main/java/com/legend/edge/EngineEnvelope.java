@@ -56,11 +56,21 @@ public final class EngineEnvelope {
     public static Answer answer(int status, @com.legend.base.Nullable String errorType, Supplier<String> call,
             java.util.function.Function<Throwable, String> words, java.util.function.Function<Throwable, String> typeName,
             java.util.function.Predicate<Throwable> uncaught) {
+        return answer(status, errorType, call, words, typeName, uncaught, e -> null);
+    }
+
+    /** {@link #answer}, a refusal of the text placed where {@code place} says, as legend-engine writes a parse error's
+     *  {@code sourceInformation} beside its message (T2 of Studio's local mode, 2026-11-23: {@code ParseErrorPlace});
+     *  no place known, no field. */
+    public static Answer answer(int status, @com.legend.base.Nullable String errorType, Supplier<String> call,
+            java.util.function.Function<Throwable, String> words, java.util.function.Function<Throwable, String> typeName,
+            java.util.function.Predicate<Throwable> uncaught,
+            java.util.function.Function<Throwable, com.legend.protocol.@com.legend.base.Nullable SourceInfo> place) {
         try {
             return new Answer(200, call.get());
         } catch (RuntimeException | StackOverflowError e) {
             if (refusesTheText(e) && !uncaught.test(e)) {
-                return error(status, errorType, words.apply(e));
+                return error(status, errorType, words.apply(e), place.apply(e));
             }
             if (!(e instanceof IllegalArgumentException || e instanceof com.legend.error.DataError)) {
                 e.printStackTrace();

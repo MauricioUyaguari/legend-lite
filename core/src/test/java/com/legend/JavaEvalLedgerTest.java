@@ -1934,6 +1934,10 @@ class JavaEvalLedgerTest {
                             // legend-engine's JSON without source information (J35's residue, 2026-11-18): moved from
                             // protocol.SourceInformation; cuts spans from text, decides nothing
                             "EngineSpans.java",
+                            // a parse error's place as legend-engine writes its sourceInformation (2026-11-23, T2 of
+                            // Studio's local mode): lite's parser's line and column spelled as the engine's span, the
+                            // token's length by the engine's lexer rules; spells a failure's place, decides nothing
+                            "ParseErrorPlace.java",
                             // legend-engine's grammar where the edge reads its protocol (J21 of the edge audit,
                             // 2026-11-17, the user's "yes to the rule"): three delegations to the parse door's engine
                             // entries; parses, decides nothing

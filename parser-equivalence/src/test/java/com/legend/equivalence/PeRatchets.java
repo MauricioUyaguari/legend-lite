@@ -228,7 +228,10 @@ public final class PeRatchets {
             "mutation.deck 950/1032 -> 1032 and own_corpus.matched 3344/3420 -> 3502 (2026-11-23, the sync of"
                     + " the fork's studio-compatibility-dev 4d2e1ea77 with neema2's main 2942e9838: both sides' models and"
                     + " fixtures together, measured by //parser-equivalence:update_ratchets on the merged tree: upstream's 3344 and"
-                    + " the branch's 158 new matches (3262 -> 3420), joined; the branch's 82 new mutants)");
+                    + " the branch's 158 new matches (3262 -> 3420), joined; the branch's 82 new mutants)",
+            "own_corpus.matched 3502 -> 3503 (2026-11-23, T2 of Studio's local mode: ParseErrorPlaceTest's one model"
+                    + " that parses, a::A with its name property, matches the reference grammar; measured by"
+                    + " //parser-equivalence:update_ratchets; a floor rising, UP)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
