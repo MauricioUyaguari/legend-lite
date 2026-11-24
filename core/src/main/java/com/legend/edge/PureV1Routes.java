@@ -125,13 +125,18 @@ public final class PureV1Routes {
     public static Answer grammarToJsonLambda(String text, boolean returnSourceInformation) {
         // through the parse door, which asks the run's wall (C5-J item 1, 2026-11-15; main's change, carried to the edge
         // where phase D moved the route)
+        // its parse error's place stays in its message: legend-engine parses a lambda inside a text of its own, so its
+        // end of input is a line after the lambda's (measured 2026-11-23), and no client of this route places it yet
         return answer(400, "PARSER", () -> EngineGrammar.lambdaJson(text, returnSourceInformation));
     }
 
     /** E2: a model's text to its PMCD JSON. */
     public static Answer grammarToJsonModel(String text, boolean returnSourceInformation) {
         // through the parse door (C5-J item 1, 2026-11-15)
-        return answer(400, "PARSER", () -> EngineGrammar.documentJson(text, returnSourceInformation));
+        // a parse error placed in the text as legend-engine places it (T2 of Studio's local mode, 2026-11-23)
+        return EngineEnvelope.answer(400, "PARSER", () -> EngineGrammar.documentJson(text, returnSourceInformation),
+                PureMessages::compile, PureMessages::typeName, PureMessages::uncaught,
+                e -> ParseErrorPlace.of(e, text, returnSourceInformation));
     }
 
     /**

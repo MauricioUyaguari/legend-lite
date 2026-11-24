@@ -42,7 +42,10 @@ class OwnDialectCensusTest {
                     // NEGATIVE differential fixtures — rows built to
                     // REFUSE on purpose (verdict/byte/message parity
                     // gates); not own-dialect code
-                    "AdversarialParityTest.java", "MessageParityTest.java");
+                    "AdversarialParityTest.java", "MessageParityTest.java",
+                    // 2026-11-23 (T2 of Studio's local mode): a parse error's place, its texts built to refuse on
+                    // purpose (two of them a section no parser knows, which the platform dialect carries unclaimed)
+                    "ParseErrorPlaceTest.java");
 
     /** THE MARKED EXTENSION-TEST SET (user directive 2026-08-12): the
      *  only hosts allowed to carry snippets that pass at LEGEND_LITE and
@@ -93,6 +96,8 @@ class OwnDialectCensusTest {
     private static final java.util.Map<String, Integer> PLATFORM_HOST_PINS =
             java.util.Map.of(   // measured 2026-08-16
                     "AdversarialParityTest.java", 7,
+                    // 0 -> 2 (2026-11-23, REVIEWED, T2 of Studio's local mode): its two unknown-section refusals
+                    "ParseErrorPlaceTest.java", 2,
                     "ElementParserTest.java", 12,
                     "LexerTest.java", 1,
                     "MessageParityTest.java", 1,
