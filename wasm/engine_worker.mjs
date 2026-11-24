@@ -8,52 +8,11 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Worker } from 'node:worker_threads';
-import { fileURLToPath } from 'node:url';
-import { runfileDirUrl } from '../tools/js/runfiles.mts';
 import {
   LegendLiteEngineTransport,
   LegendLiteEngineError,
-  unfoldLegendLiteEngineAnswer,
 } from './engine-worker/src/LegendLiteEngineTransport.ts';
-
-const dir = runfileDirUrl('WASM_ENGINE_PLANNER');
-const RUNTIME_URL = new URL('wasm-gc-module-runtime.js', dir).href;
-const MODULE_URL = fileURLToPath(new URL('classes.wasm', dir));
-const WORKER_URL = new URL('./engine-worker/src/LegendLiteEngine.worker.ts', import.meta.url).href;
-const SHIM = new URL('./engine_worker_shim.mjs', import.meta.url);
-
-// a worker takes the process's Node options; its V8 options (the WebAssembly ones) are the process's already
-const NODE_ARGS = process.execArgv.filter((a) => !a.startsWith('--experimental-wasm-'));
-
-/** A connection to a fresh worker thread, as LegendLiteEngineAssets creates one in a page. */
-const connect = async () => {
-  const worker = new Worker(SHIM, { workerData: { workerUrl: WORKER_URL }, execArgv: NODE_ARGS });
-  return {
-    port: {
-      send: (request) => worker.postMessage(request),
-      listen: (onResponse, onFailure) => {
-        worker.on('message', onResponse);
-        worker.on('error', (error) => onFailure(error.message));
-      },
-      close: () => void worker.terminate(),
-    },
-    runtimeUrl: RUNTIME_URL,
-    moduleUrl: MODULE_URL,
-  };
-};
-
-/** The module asked directly, in this thread. */
-const direct = async () => {
-  const { load } = await import(RUNTIME_URL);
-  const module = await load(MODULE_URL, {
-    stackDeobfuscator: { enabled: false },
-    installImports(o) {
-      o.teavmConsole = { putcharStdout() {}, putcharStderr() {} };
-    },
-  });
-  return (path, query, body) => unfoldLegendLiteEngineAnswer(module.exports.pureV1OrError(path, query, body));
-};
+import { connect, direct, MODULE_URL } from './engine_worker_host.mjs';
 
 const MODEL = `Class model::Person
 {
