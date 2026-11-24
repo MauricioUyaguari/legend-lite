@@ -6,8 +6,6 @@ package com.legend.edge;
 import com.legend.protocol.SourceInfo;
 
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * WHERE A TEXT FAILS TO PARSE, AS LEGEND-ENGINE SAYS IT (T2 of docs/LEGEND_STUDIO_TEXT_MODE_PLAN_2026_11_23.md, phase
@@ -140,48 +138,203 @@ final class ParseErrorPlace {
     /**
      * The length of legend-engine's token at {@code offset} in {@code text}: the longest of its lexer's rules that
      * matches there, as ANTLR's lexer chooses ({@code CoreLexerGrammar.g4}, {@code CoreFragmentGrammar.g4}; a section's
-     * own tokens, a mapping's {@code ~mainTable} say, are not read) -- a word,
-     * a number, a date, a string (a quote its line does not close is no string: the catch-all {@code INVALID} reads the
-     * quote alone), an island's opening, a two-character operator -- or one character.
+     * own tokens, a mapping's {@code ~mainTable} say, are not read) -- a word, a number, a date, a string (a quote its
+     * line does not close is no string: the catch-all {@code INVALID} reads the quote alone), an island's opening, a
+     * two-character operator -- or one character. Scanned by hand, in one pass: a pattern's repeated alternation
+     * recurses once per character, which a long token (a string kilobytes long) overflows, in the browser's module
+     * above all.
      */
     private static int tokenLength(String text, int offset) {
-        int longest = 1;
-        for (Pattern token : TOKENS) {
-            Matcher m = token.matcher(text).region(offset, text.length());
-            if (m.lookingAt()) {
-                longest = Math.max(longest, m.end() - offset);
+        int n = text.length();
+        char c = text.charAt(offset);
+        int end = offset + 1;
+        if (c == '\'') {
+            end = Math.max(end, textBlockEnd(text, offset));
+            end = Math.max(end, quotedEnd(text, offset, '\''));
+        } else if (c == '"') {
+            // ###Relational's quoted name (RelationalLexerGrammar.g4's QUOTED_STRING)
+            end = Math.max(end, quotedEnd(text, offset, '"'));
+        } else if (c == '%') {
+            if (text.startsWith("%latest", offset)) {
+                end = Math.max(end, offset + "%latest".length());
+            }
+            end = Math.max(end, dateEnd(text, offset));
+            end = Math.max(end, timeEnd(text, offset + 1));
+        } else if (c == '#') {
+            // ISLAND_OPEN: '#' (~[#{])* '{'
+            int j = offset + 1;
+            while (j < n && text.charAt(j) != '#' && text.charAt(j) != '{') {
+                j++;
+            }
+            if (j < n && text.charAt(j) == '{') {
+                end = j + 1;
+            }
+        } else if (word(c) || c == '.') {
+            if (word(c)) {
+                // ValidString: (Letter | Digit | '_') (Letter | Digit | '_' | '$')*
+                int j = offset + 1;
+                while (j < n && (word(text.charAt(j)) || text.charAt(j) == '$')) {
+                    j++;
+                }
+                end = j;
+            }
+            end = Math.max(end, numberEnd(text, offset));
+        }
+        if (text.startsWith("PRIMARY KEY", offset)) {
+            // ###Relational's own
+            end = Math.max(end, offset + "PRIMARY KEY".length());
+        }
+        for (String op : OPERATORS) {
+            if (text.startsWith(op, offset)) {
+                end = Math.max(end, offset + op.length());
             }
         }
-        return longest;
+        return end - offset;
     }
 
-    private static final String DIGITS = "[0-9]+";
+    /** The two-character operators, and ISLAND_END. */
+    private static final List<String> OPERATORS = List.of("::", "->", "==", "!=", "<=", ">=", "&&", "||", "..", "}#");
 
-    /** A string: an escape, or any character but a quote, a line break or a backslash, between quotes. */
-    private static final String STRING = "'(?:\\\\.|[^'\\r\\n\\\\])*'";
+    private static boolean word(char c) {
+        return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+    }
 
-    /** legend-engine's token rules, each tried where the error is. */
-    private static final List<Pattern> TOKENS = java.util.stream.Stream.of(
-            // ValidString: (Letter | Digit | '_') (Letter | Digit | '_' | '$')*
-            "[A-Za-z0-9_][A-Za-z0-9_$]*",
-            // Float and Decimal
-            "[0-9]*\\.[0-9]+(?:[eE][+-]?[0-9]+)?[fF]?",
-            "(?:[0-9]*\\.[0-9]+|[0-9]+)(?:[eE][+-]?[0-9]+)?[dD]",
-            // Date, StrictTime and %latest
-            "%-?" + DIGITS + "(?:-" + DIGITS + "(?:-" + DIGITS + "(?:T" + DIGITS + "(?::" + DIGITS + "(?::" + DIGITS
-                    + "(?:\\." + DIGITS + ")?)?)?(?:" + STRING + "|[+-][0-9]{4})?)?)?)?",
-            "%" + DIGITS + "(?::" + DIGITS + "(?::" + DIGITS + "(?:\\." + DIGITS + ")?)?)?",
-            "%latest",
-            // String and TextBlock
-            STRING,
-            "'''[ \\t]*\\r?\\n[\\s\\S]*?'''",
-            // ISLAND_OPEN, ISLAND_START's and ISLAND_END
-            "#[^#{]*\\{",
-            "\\}#",
-            // the two-character operators
-            "::|->|==|!=|<=|>=|&&|\\|\\||\\.\\.",
-            // ###Relational's own: a quoted name, and PRIMARY KEY (RelationalLexerGrammar.g4; no other grammar has either)
-            "\"(?:\\\\.|[^\"\\r\\n])*\"",
-            "PRIMARY KEY")
-            .map(Pattern::compile).toList();
+    private static boolean digit(String text, int i) {
+        return i < text.length() && text.charAt(i) >= '0' && text.charAt(i) <= '9';
+    }
+
+    /** The index after the digits at {@code i}, or -1 where there is none. */
+    private static int digits(String text, int i) {
+        if (!digit(text, i)) {
+            return -1;
+        }
+        int j = i;
+        while (digit(text, j)) {
+            j++;
+        }
+        return j;
+    }
+
+    /** A string between two {@code quote}s on one line, its escapes read: the index after it, or -1. */
+    private static int quotedEnd(String text, int offset, char quote) {
+        int j = offset + 1;
+        while (j < text.length()) {
+            char d = text.charAt(j);
+            if (d == '\\') {
+                j += 2;
+            } else if (d == quote) {
+                return j + 1;
+            } else if (d == '\n' || d == '\r') {
+                return -1;
+            } else {
+                j++;
+            }
+        }
+        return -1;
+    }
+
+    /** TextBlock: three quotes, spaces or tabs, a line break, then anything up to the next three quotes: the index
+     *  after them, or -1. */
+    private static int textBlockEnd(String text, int offset) {
+        String three = "'''";
+        if (!text.startsWith(three, offset)) {
+            return -1;
+        }
+        int j = offset + 3;
+        while (j < text.length() && (text.charAt(j) == ' ' || text.charAt(j) == '\t')) {
+            j++;
+        }
+        if (j < text.length() && text.charAt(j) == '\r') {
+            j++;
+        }
+        if (j >= text.length() || text.charAt(j) != '\n') {
+            return -1;
+        }
+        int close = text.indexOf(three, j + 1);
+        return close < 0 ? -1 : close + 3;
+    }
+
+    /** Float ({@code [0-9]* '.' [0-9]+ exponent? [fF]?}) or Decimal (that, or digits, then {@code [dD]}): the index
+     *  after it, or -1. */
+    private static int numberEnd(String text, int offset) {
+        int j = offset;
+        while (digit(text, j)) {
+            j++;
+        }
+        boolean whole = j > offset;
+        boolean fraction = false;
+        if (j < text.length() && text.charAt(j) == '.' && digit(text, j + 1)) {
+            j = digits(text, j + 1);
+            fraction = true;
+        }
+        if (!whole && !fraction) {
+            return -1;
+        }
+        if (j < text.length() && (text.charAt(j) == 'e' || text.charAt(j) == 'E')) {
+            int k = j + 1;
+            if (k < text.length() && (text.charAt(k) == '+' || text.charAt(k) == '-')) {
+                k++;
+            }
+            int e = digits(text, k);
+            if (e > 0) {
+                j = e;
+            }
+        }
+        if (j < text.length() && (text.charAt(j) == 'd' || text.charAt(j) == 'D')) {
+            return j + 1;
+        }
+        if (!fraction) {
+            return -1;
+        }
+        return j < text.length() && (text.charAt(j) == 'f' || text.charAt(j) == 'F') ? j + 1 : j;
+    }
+
+    /** Date: {@code '%' '-'? digits ('-' digits ('-' digits ('T' time zone?)?)?)?}: the index after it, or -1. */
+    private static int dateEnd(String text, int offset) {
+        int j = offset + 1;
+        if (j < text.length() && text.charAt(j) == '-') {
+            j++;
+        }
+        j = digits(text, j);
+        if (j < 0) {
+            return -1;
+        }
+        int month = text.startsWith("-", j) ? digits(text, j + 1) : -1;
+        if (month < 0) {
+            return j;
+        }
+        int day = text.startsWith("-", month) ? digits(text, month + 1) : -1;
+        if (day < 0) {
+            return month;
+        }
+        int time = text.startsWith("T", day) ? timeEnd(text, day + 1) : -1;
+        if (time < 0) {
+            return day;
+        }
+        int zone = text.startsWith("'", time) ? quotedEnd(text, time, '\'') : -1;
+        if (zone < 0 && time < text.length() && (text.charAt(time) == '+' || text.charAt(time) == '-')
+                && digits(text, time + 1) == time + 5) {
+            zone = time + 5;
+        }
+        return zone < 0 ? time : zone;
+    }
+
+    /** DateTime, and a StrictTime after its '%': {@code digits (':' digits (':' digits ('.' digits)?)?)?}: the index
+     *  after it, or -1. */
+    private static int timeEnd(String text, int i) {
+        int j = digits(text, i);
+        if (j < 0) {
+            return -1;
+        }
+        int minutes = text.startsWith(":", j) ? digits(text, j + 1) : -1;
+        if (minutes < 0) {
+            return j;
+        }
+        int seconds = text.startsWith(":", minutes) ? digits(text, minutes + 1) : -1;
+        if (seconds < 0) {
+            return minutes;
+        }
+        int fraction = text.startsWith(".", seconds) ? digits(text, seconds + 1) : -1;
+        return fraction < 0 ? seconds : fraction;
+    }
 }

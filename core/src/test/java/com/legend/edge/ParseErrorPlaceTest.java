@@ -62,6 +62,17 @@ class ParseErrorPlaceTest {
         placed("Class a::A\n{\n  name: String[1] = 'abc;\n}\n", 3, 21, 3, 21);
     }
 
+    /** A long token is scanned in one pass (a pattern's alternation recursed per character and overflowed the module's
+     *  stack on a 6,000-character string, 2026-11-24). */
+    @Test
+    void aLongToken_isScannedWithoutRecursion() {
+        String big = "x".repeat(20_000);
+        // engine (6,000 characters): "Unexpected token", the quote alone
+        placed("Class a::A\n{\n  name: String[1] = '" + big + "\n}\n", 3, 21, 3, 21);
+        // a string that closes spans all of it
+        placed("Class a::A\n{\n  name: String[1] = '" + big + "'\n  other: Integer[1];\n}\n", 4, 3, 4, 7);
+    }
+
     @Test
     void theEndOfTheText_isEofsFiveCharacters() {
         // engine: "Unexpected token '<EOF>'. Valid alternatives: ['import', 'Class', ...]"
