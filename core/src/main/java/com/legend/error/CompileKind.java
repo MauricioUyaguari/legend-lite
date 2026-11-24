@@ -82,6 +82,12 @@ public enum CompileKind implements ErrorCode {
      *  PropertyValidator). */
     DEFAULT_ON_OPTIONAL("Default values are supported only for mandatory fields, and property '%1$s' is optional.",
             Raised.COMPILING),
+    /** A Pure class mapping with no {@code ~src}: the class's path, the mapping's. Lite's words: legend-engine compiles
+     *  it (its srcClass null), lite refuses it, ruled by the user 2026-11-17 (docs/SEMANTICS_REGISTER.md S21); a code of
+     *  its own since 2026-11-24 (T3 of Studio's local mode: legend-engine's API marks it a ruled refusal). */
+    PURE_MAPPING_WITHOUT_SOURCE("Pure class mapping for '%1$s' in mapping '%2$s' declares no ~src, so it has no source"
+            + " extent to map from \u2014 such a mapping can be compiled and analysed but cannot produce rows",
+            Raised.COMPILING),
     /** An enumeration declaring a value twice: the enumeration's path, its duplicated values sorted and joined by
      *  ", " (legend-pure's EnumerationValidator; the BE audit 2's S1, 2026-11-21: legend-engine warns, "Found duplicated
      *  value", which lite said until then). */

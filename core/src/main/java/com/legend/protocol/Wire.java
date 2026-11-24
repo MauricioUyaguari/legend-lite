@@ -48,6 +48,11 @@ final class Wire {
         return new IllegalArgumentException("protocol JSON: " + why);
     }
 
+    /** A field no reader rule takes, or an older value no record carries (S29): its own refusal type. */
+    static UnreadJson unread(String why) {
+        return new UnreadJson("protocol JSON: " + why);
+    }
+
     Json.Obj json() {
         return obj;
     }
@@ -240,21 +245,21 @@ final class Wire {
     void constant(String key, String expected) {
         String v = str(key);
         if (!v.equals(expected)) {
-            throw refuse(where + "." + key + " is '" + v + "', the only readable value is '" + expected + "'");
+            throw unread(where + "." + key + " is '" + v + "', the only readable value is '" + expected + "'");
         }
     }
 
     /** A boolean field the emitter writes as a constant. */
     void constant(String key, boolean expected) {
         if (bool(key) != expected) {
-            throw refuse(where + "." + key + " is " + !expected + ", the only readable value is " + expected);
+            throw unread(where + "." + key + " is " + !expected + ", the only readable value is " + expected);
         }
     }
 
     /** An array field the emitter always writes empty. */
     void emptyArray(String key) {
         if (!arr(key).isEmpty()) {
-            throw refuse(where + "." + key + " is not empty: no record carries it");
+            throw unread(where + "." + key + " is not empty: no record carries it");
         }
     }
 
@@ -262,7 +267,7 @@ final class Wire {
      *  starts it empty). */
     void emptyOrAbsent(String key) {
         if (!arrOrEmpty(key).isEmpty()) {
-            throw refuse(where + "." + key + " is not empty: no record carries it");
+            throw unread(where + "." + key + " is not empty: no record carries it");
         }
     }
 
@@ -271,7 +276,7 @@ final class Wire {
         if (taken.size() != obj.fields().size()) {
             for (String k : obj.fields().keySet()) {
                 if (!taken.contains(k)) {
-                    throw refuse(where + " has a field no reader rule takes: '" + k + "'");
+                    throw unread(where + " has a field no reader rule takes: '" + k + "'");
                 }
             }
         }
@@ -342,7 +347,8 @@ final class Wire {
     static <V> V rule(Map<String, V> table, @com.legend.base.Nullable String type, String family) {
         V r = type == null ? null : table.get(type);
         if (r == null) {
-            throw refuse("no reader rule for " + family + " _type '" + type + "' -- add the rule, do not drop it");
+            throw new NoReaderRule("protocol JSON: no reader rule for " + family + " _type '" + type
+                    + "' -- add the rule, do not drop it");
         }
         return r;
     }

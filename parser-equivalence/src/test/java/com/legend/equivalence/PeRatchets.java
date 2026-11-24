@@ -231,6 +231,9 @@ public final class PeRatchets {
                     + " the branch's 158 new matches (3262 -> 3420), joined; the branch's 82 new mutants)",
             "own_corpus.matched 3502 -> 3503 (2026-11-23, T2 of Studio's local mode: ParseErrorPlaceTest's one model"
                     + " that parses, a::A with its name property, matches the reference grammar; measured by"
+                    + " //parser-equivalence:update_ratchets; a floor rising, UP)",
+            "own_corpus.matched 3503 -> 3508 (2026-11-24, T3 of Studio's local mode: EngineRefusalsTest's models -- the"
+                    + " S21, S90 and S395 classes and mapping -- match the reference grammar; measured by"
                     + " //parser-equivalence:update_ratchets; a floor rising, UP)");
 
     public static void main(String[] args) throws Exception {
