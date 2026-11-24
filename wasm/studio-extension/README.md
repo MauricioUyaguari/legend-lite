@@ -20,11 +20,17 @@ plan is legend-lite's `docs/LEGEND_STUDIO_TEXT_MODE_PLAN_2026_11_23.md`.
 
 - **`answer(route, { query, body })`** sends the call to the engine module and returns the route's own status and body.
   An error in the user's model comes back as legend-engine's error JSON, so Studio shows it as it shows the server's.
+  A failure of legend-lite itself (its worker or its module) is answered too, never thrown: Studio shows a thrown error
+  and keeps the session local. It is a 500 marked `"refusal": {"kind": "UNAVAILABLE"}`, so Studio reruns the call on the
+  engine server and the session leaves local mode. The failed worker is dropped, and the next call starts a new one.
 - **`isAvailable()`** loads the module and parses the smallest model, once per editing session. Studio checks
   WebAssembly GC support first. If this returns `false`, the session uses the engine server.
-- **`isRefusal(response)`** reads legend-lite's marker in an error answer, beside legend-engine's fields:
-  `"refusal": {"kind": "UNSUPPORTED"}` or `{"kind": "RULED", "row": "S21"}`. Studio then reruns the call on the engine
-  server, and the session leaves local mode.
+- **`isRefusal(response)`** reads the marker in an error answer, beside legend-engine's fields:
+  - `"refusal": {"kind": "UNSUPPORTED"}`, a construct legend-lite does not implement;
+  - `{"kind": "RULED", "row": "S21"}`, a model legend-lite rejects by a ruled row of its register where legend-engine accepts it;
+  - `{"kind": "UNAVAILABLE"}`, the plugin's own, for a call its worker or module failed.
+
+  Studio then reruns the call on the engine server, and the session leaves local mode.
 - **Nothing is fetched at registration.** The worker and the module (about 9 MB) are loaded by a session's first local
   call. The worker and the transport are `@legend-lite/engine-worker`'s.
 

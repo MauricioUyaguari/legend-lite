@@ -46,6 +46,10 @@ export interface LegendLiteLocalEngineTransport {
 type LocalEngineRequest = { query: Record<string, string>; body: string };
 type LocalEngineResponse = { status: number; body: string };
 
+/** The marker of a call legend-lite could not answer at all (its worker or its module failed): the plugin's own, beside
+ *  the module's UNSUPPORTED and RULED. */
+export const LEGEND_LITE_UNAVAILABLE = 'UNAVAILABLE';
+
 /** The smallest model: what `isAvailable()` asks, once, to know the module loads and answers. */
 const PROBE_MODEL = 'Class meta::legend::lite::Probe {}';
 
@@ -53,7 +57,8 @@ const PROBE_MODEL = 'Class meta::legend::lite::Probe {}';
  * Whether an answer is legend-lite refusing a call it does not support -- a construct it does not implement
  * (`UNSUPPORTED`), or one it rejects where legend-engine accepts it, by a ruling in its register (`RULED`) -- rather
  * than an error in the user's model. legend-lite marks it in the error's JSON, beside legend-engine's own fields:
- * `"refusal": {"kind": "UNSUPPORTED"}` or `{"kind": "RULED", "row": "S21"}` (T3 of legend-lite's Studio local mode).
+ * `"refusal": {"kind": "UNSUPPORTED"}` or `{"kind": "RULED", "row": "S21"}` (T3 of legend-lite's Studio local mode);
+ * the plugin itself marks a call its worker or module failed, `{"kind": "UNAVAILABLE"}`.
  * Studio then reruns the call on the engine server, and the session leaves local mode.
  */
 export const isLegendLiteRefusal = (response: LocalEngineResponse): boolean => {
@@ -81,32 +86,51 @@ export class LegendLiteLocalEngine {
     this._transport = transport;
   }
 
-  /** Answers one call as legend-engine's route would: the route's own status and body. A failure of legend-lite
-   *  itself (its worker, its module) is thrown, so Studio leaves local mode for the session. */
+  /**
+   * Answers one call as legend-engine's route would: the route's own status and body.
+   *
+   * A failure of legend-lite itself (its worker, its module) is answered too, never thrown: Studio shows a thrown error
+   * and keeps the session local, so the call would not reach the engine server. It is a 500 in legend-engine's error
+   * shape marked `"refusal": {"kind": "UNAVAILABLE"}`, which {@link isLegendLiteRefusal} matches: Studio reruns the
+   * call on the engine server and the session leaves local mode. The failed transport is dropped; the next call, from
+   * this editor or a later one (Studio never disposes a local engine), starts a new worker.
+   */
   async answer(
     route: string,
     request: LocalEngineRequest,
   ): Promise<LocalEngineResponse> {
-    this._current ??= this._transport();
-    const answer = await this._current.pureV1(
-      `/api/pure/v1/${route}`,
-      new URLSearchParams(request.query).toString(),
-      request.body,
-    );
-    return { status: answer.status, body: answer.body };
+    const transport = (this._current ??= this._transport());
+    try {
+      const answer = await transport.pureV1(
+        `/api/pure/v1/${route}`,
+        new URLSearchParams(request.query).toString(),
+        request.body,
+      );
+      return { status: answer.status, body: answer.body };
+    } catch (error) {
+      if (this._current === transport) {
+        this._current = undefined;
+      }
+      transport.dispose();
+      return {
+        status: 500,
+        body: JSON.stringify({
+          code: -1,
+          message: `legend-lite failed: ${error instanceof Error ? error.message : String(error)}`,
+          refusal: { kind: LEGEND_LITE_UNAVAILABLE },
+          status: 'error',
+        }),
+      };
+    }
   }
 
   /** Whether the module loads and answers, asked once by Studio before a session's first local call. */
   async isAvailable(): Promise<boolean> {
-    try {
-      const answer = await this.answer('grammar/grammarToJson/model', {
-        query: {},
-        body: PROBE_MODEL,
-      });
-      return answer.status === 200;
-    } catch {
-      return false;
-    }
+    const answer = await this.answer('grammar/grammarToJson/model', {
+      query: {},
+      body: PROBE_MODEL,
+    });
+    return answer.status === 200;
   }
 
   isRefusal(response: LocalEngineResponse): boolean {

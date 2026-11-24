@@ -159,3 +159,25 @@ test('a module that cannot load is not available, so Studio keeps the session on
     e.dispose();
   }
 });
+
+test('a failure of the worker or the module is an answer marked as a refusal, and the next call starts a new worker', async () => {
+  let made = 0;
+  const e = new LegendLiteLocalEngine(() => {
+    made++;
+    // the first transport's module cannot load; the next one is sound
+    return made === 1
+      ? new LegendLiteEngineTransport(async () => ({ ...(await connect()), moduleUrl: `${MODULE_URL}.missing` }))
+      : new LegendLiteEngineTransport(connect);
+  });
+  try {
+    const failed = await e.answer('grammar/grammarToJson/model', { query: {}, body: MODELS['a class and a function'] });
+    assert.equal(failed.status, 500);
+    assert.deepEqual(JSON.parse(failed.body).refusal, { kind: 'UNAVAILABLE' });
+    assert.equal(e.isRefusal(failed), true, 'Studio reruns it on the engine server');
+    const answered = await e.answer('grammar/grammarToJson/model', { query: {}, body: MODELS['a class and a function'] });
+    assert.equal(answered.status, 200);
+    assert.equal(made, 2, 'the failed transport was dropped');
+  } finally {
+    e.dispose();
+  }
+});

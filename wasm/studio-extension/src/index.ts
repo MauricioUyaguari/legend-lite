@@ -25,5 +25,6 @@ export {
   LEGEND_LITE_LOCAL_ENGINE_KEY,
   LEGEND_LITE_LOCAL_ENGINE_LABEL,
   LEGEND_LITE_LOCAL_ENGINE_ROUTES,
+  LEGEND_LITE_UNAVAILABLE,
   type LegendLiteLocalEngineTransport,
 } from './LegendLiteLocalEngine.js';
