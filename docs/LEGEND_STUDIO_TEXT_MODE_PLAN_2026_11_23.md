@@ -1,12 +1,23 @@
 # Legend Studio's local mode: engine calls answered by legend-lite's WebAssembly compiler (a plan, 2026-11-23)
 
-**Status:** the user accepted P1 to P7 on 2026-11-23, with option (a) for P2 (2.2). Two sessions started that
-day: PR 1 in legend-studio, and phase 0 in legend-lite. Nothing is merged. The probes in section 4 were run on 2026-11-23. Their scripts and
-outputs are in [`legend-studio-text-mode-homework/`](legend-studio-text-mode-homework/README.md).
+**Status, 2026-11-24:** the author accepted P1 to P7 on 2026-11-23, with option (a) for P2 (2.2). Nothing is merged.
+- **PR 1 is open as a draft:** [finos/legend-studio#5962](https://github.com/finos/legend-studio/pull/5962). For now
+  it routes the calls the workspace editor makes: form mode, text mode and Text Studio. Its contract and configuration
+  differ from 6.2 and 6.3 as those sections note.
+- **Phase 0 is under way** on the author's fork of legend-lite. Each pull request is stacked on a sync of `main`:
+  - [MauricioUyaguari/legend-lite#13](https://github.com/MauricioUyaguari/legend-lite/pull/13): T2, parse errors carry legend-engine's `sourceInformation`;
+  - [MauricioUyaguari/legend-lite#14](https://github.com/MauricioUyaguari/legend-lite/pull/14): T4 and T5, the model JSON against legend-engine 4.152;
+  - [MauricioUyaguari/legend-lite#15](https://github.com/MauricioUyaguari/legend-lite/pull/15): #120's engine module in a Web Worker, as its own package (T11);
+  - [MauricioUyaguari/legend-lite#16](https://github.com/MauricioUyaguari/legend-lite/pull/16): legend-lite's Studio plugin.
 
-**What changed (the user, 2026-11-23).**
+  T3, refusals marked, is next.
+- **The probes** in section 4 were run on 2026-11-23. Their scripts and outputs are in
+  [`legend-studio-text-mode-homework/`](legend-studio-text-mode-homework/README.md).
+
+**What changed (the author, 2026-11-23).**
 - **Legend Studio, not DataCube, is the first product to use legend-lite.** The DataCube proposal
-  ([`LEGEND_STUDIO_INTEGRATION_PROPOSAL_2026_11_18.md`](LEGEND_STUDIO_INTEGRATION_PROPOSAL_2026_11_18.md)) is parked,
+  ([`LEGEND_STUDIO_INTEGRATION_PROPOSAL_2026_11_18.md`](https://github.com/MauricioUyaguari/legend-lite/blob/docs/legend-studio-integration-proposal/docs/LEGEND_STUDIO_INTEGRATION_PROPOSAL_2026_11_18.md),
+  first proposed in [neema2/legend-lite#119](https://github.com/neema2/legend-lite/pull/119)) is parked,
   with its hook, [finos/legend-studio#5951](https://github.com/finos/legend-studio/pull/5951), a draft.
 - **#120 waits too, with an exception.** This plan needs two parts of
   [neema2/legend-lite#120](https://github.com/neema2/legend-lite/pull/120), and they must land apart from its DataCube
@@ -60,10 +71,10 @@ environment.
 
 ## 2. Decisions and proposals
 
-### 2.1 The user's direction, 2026-11-23
+### 2.1 The author's direction, 2026-11-23
 
-The user proposed these and asked for challenges. They stand until ruled; 2.2 refines them. Row 4 is this
-plan's reading of "merge the two": the flag and the project check, the user's two first ideas. Row 5 carries over
+The author proposed these and asked for challenges. They stand until ruled; 2.2 refines them. Row 4 is this
+plan's reading of "merge the two": the flag and the project check, the author's two first ideas. Row 5 carries over
 the answer given for text mode.
 
 | # | Question | Direction |
@@ -76,22 +87,22 @@ the answer given for text mode.
 | 6 | How it reaches a deployment | Through the published packages. A deployment that builds Studio from the published `@finos` packages can use only a hook that is merged and released. legend-lite's packages are not on a public registry, so the deployment publishes them itself and loads legend-lite through a plugin it registers |
 | 7 | The DataCube work | Parked. The discussion is reworded around Studio |
 
-### 2.2 Proposed here, and accepted by the user on 2026-11-23
+### 2.2 Proposed here, and accepted by the author on 2026-11-23
 
-Each of these refines the direction above. The user accepted all seven, choosing (a) for P2: phase 1 starts with
+Each of these refines the direction above. The author accepted all seven, choosing (a) for P2: phase 1 starts with
 parse and compose, and compile is added by configuration once T1 and T12 land. Sections 5 to 7 give the details.
 
 - **P1. The set of local calls is configuration, not code.** The plugin declares which calls it answers. The
   deployment's configuration lists which of them go local. Studio routes a call locally only if both say so. Adding a
   call is then a configuration change plus legend-lite's support, with no Studio release. Under this, the plugin
   doesn't have to implement a fixed set of three; legend-lite's will implement all three.
-- **P2. Compile is not ready, so phase 1's first set is a choice. The user chose (a).**
+- **P2. Compile is not ready, so phase 1's first set is a choice. The author chose (a).**
   - Today legend-lite refuses any compile request that includes the project's dependencies (T1). That is almost
     every real project.
   - Its compile errors also don't return the `sourceId` that form mode uses to place them (T12). A form-mode compile
     error would therefore send the user to text mode every time.
   - Parse and compose need fixes too, but fewer: T2 to T5 (4.7 shows why).
-  - So the user chooses:
+  - So the author chooses:
     - **(a)** start phase 1 with parse and compose once they are ready, and add compile by configuration once T1
       and T12 land;
     - **(b)** wait, and start with all three.
@@ -376,6 +387,16 @@ class LegendStudioApplicationPlugin {
   and client already exist in #120's DataCube plugin.
 - **The set can grow.** The contract has no fixed list of calls, so a new call needs no change to it (P1).
 
+**As built in PR 1** ([finos/legend-studio#5962](https://github.com/finos/legend-studio/pull/5962), 2026-11-24), with
+four differences:
+- **No `dispose()`.** Engines come from the application's plugins, every editor shares them, and Studio never
+  disposes one.
+- **A route is named below `pure/v1/`**, e.g. `grammar/grammarToJson/model`, with no leading slash and no query.
+- **A thrown error is shown to the user and not rerun,** and the session stays local. A refusal must be an answer
+  that `isRefusal` recognizes (6.5).
+- **The configuration has an optional `engine.local.engine`:** the key of the engine to use when plugins provide
+  more than one (6.3).
+
 ### 6.3 The configuration, and a switch for each user
 
 Studio's `config.json` already has an `engine` block. Local mode would sit in it:
@@ -402,6 +423,9 @@ Studio's `config.json` already has an `engine` block. Local mode would sit in it
 - **The Dev Tool panel** gets "Local engine: on/off for this browser", beside the engine client's switches. It can
   only turn local mode off, never on where the deployment has it off (P4).
 - **A label** in text mode's header and on the compile notifications says who answered.
+
+**As built in PR 1:** `mode` is `off` or `on`; any other value, `auto` included, means `off` until PR 2. The switch
+reads "Local engine: off for this browser". The label saying who answered is not built.
 
 ### 6.4 How a call is routed
 
@@ -430,6 +454,9 @@ flowchart TD
   session uses one implementation at a time. The user sees a notice once.
 - **The local engine decides what a refusal is** (`isRefusal`). legend-lite's plugin recognizes legend-lite's marker
   (T3). Until T3 lands, legend-lite marks nothing, and every local failure is shown as it is.
+- **As built (2026-11-24):** a refusal is always an answer, never a thrown error (6.2). legend-lite marks three
+  kinds: `UNSUPPORTED` and `RULED`, which its module writes (T3), and `UNAVAILABLE`, which its plugin writes when its
+  worker or module failed and could not answer at all ([MauricioUyaguari/legend-lite#16](https://github.com/MauricioUyaguari/legend-lite/pull/16)).
 
 ### 6.6 Phase 2: the project check
 
@@ -528,6 +555,7 @@ design benefits from what phase 1 shows. Each needs a release, but PR 2's releas
 | **Large projects** | Composing and compiling are about 4 times slower than a warm engine, and dependencies are recompiled on every compile | T6 measures real projects, T10 holds the dependencies, and `routes` can leave compile on the engine |
 | **The release wait** | Phase 1 can't start before PR 1 is released | PR 1 kept small; phase 0 runs meanwhile |
 | **A refusal anywhere ends local mode** | Routing by call includes the importer, the diff views and the generation steps, and a refusal in any of them moves the session to the engine | Counted in phase 1; refusals become legend-lite fixes |
+| **A local call that never answers** | Neither Studio's engine client nor legend-lite's worker transport times out a call, so a stalled module download or a module that never answers leaves the user waiting (found 2026-11-24) | Not addressed yet. A timeout in legend-lite's plugin, answered as `UNAVAILABLE`, would rerun the call on the engine |
 | **Download and memory** | 9.3 MB on first use, and a second copy of the model in the worker | Fetched only on first use, then cached; measured in phase 1 |
 
 ## 9. Questions for legend-studio's maintainers
