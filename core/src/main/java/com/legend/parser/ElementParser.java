@@ -1439,6 +1439,14 @@ public final class ElementParser implements TokenStreamCursor {
             throw error("a (" + pointerType.toLowerCase(java.util.Locale.ROOT)
                     + ") marker introduces test DATA, not a test");
         }
+        if (peek() == TokenType.SEMI_COLON) {
+            // my::Data; -- a reference to a Data element (legend-engine 4.151.4's functionDataReference, e8c9d85613;
+            // T5 of Studio's local mode, 2026-11-23): its pointer spans the name, the entry the ';'
+            advance();
+            data.add(new com.legend.protocol.Protocol.PTestData(head, spanOf(entryStart, headEnd), null, null,
+                    spanOf(entryStart, pos - 1)));
+            return;
+        }
         tests.add(parseFunctionTest(sig, entryStart, head));
     }
 
@@ -1778,8 +1786,7 @@ public final class ElementParser implements TokenStreamCursor {
             int idx = params.size();
             params.add(new com.legend.protocol.Protocol.PTestParam(
                     idx < sig.params().size() ? sig.params().get(idx).name() : null,
-                    SpecParser.parse(tokens.slice(vStart, pos), dialect),
-                    spanOf(vStart, pos - 1)));
+                    testValue(vStart, pos), spanOf(vStart, pos - 1)));
         }
         expect(TokenType.PAREN_CLOSE);
         expect(TokenType.EQUAL);
@@ -1827,11 +1834,90 @@ public final class ElementParser implements TokenStreamCursor {
                 advance();
             }
             assertion = new com.legend.protocol.Protocol.PAssertion.EqualTo(
-                    SpecParser.parse(tokens.slice(eStart, pos), dialect), spanOf(eStart, pos - 1));
+                    testValue(eStart, pos), spanOf(eStart, pos - 1));
         }
         expect(TokenType.SEMI_COLON);
         return new com.legend.protocol.Protocol.PFunctionTest(testId,
                 spanOf(testStart, pos - 1), params, assertion, doc);
+    }
+
+    /**
+     * A function test's parameter or expected value as legend-engine reads it (its {@code simpleFunctionTest}'s
+     * {@code primitiveValue}, parsed by {@code DomainParser.parsePrimitiveValue}): a sign before an Integer or a Float is
+     * part of the literal ({@code instanceLiteral: (MINUS INTEGER) | (MINUS FLOAT) | (PLUS INTEGER) | (PLUS FLOAT)}), so
+     * {@code -3} is the Integer -3 spanning the sign and the digits, never {@code minus(3)} (whose JSON the engine's
+     * compiler refuses with a ClassCastException; T4 of Studio's local mode, 2026-11-23); so too each element of a
+     * {@code [...]} vector. A Decimal keeps lite's reading: the engine's walker has no arm for a signed Decimal.
+     */
+    private ValueSpecification testValue(int from, int to) {
+        ValueSpecification v = SpecParser.parse(tokens.slice(from, to), dialect);
+        if (signedNumber(from, to)) {
+            return signed(v, tokens.type(from) == TokenType.MINUS);
+        }
+        if (v instanceof com.legend.protocol.spec.PureCollection c && to - from >= 2
+                && tokens.type(from) == TokenType.BRACKET_OPEN && tokens.type(to - 1) == TokenType.BRACKET_CLOSE) {
+            // a vector: its elements, split at its top-level commas, folded one by one
+            List<int[]> elements = new ArrayList<>();
+            int depth = 0;
+            int start = from + 1;
+            for (int i = from + 1; i < to - 1; i++) {
+                TokenType t = tokens.type(i);
+                if (t == TokenType.PAREN_OPEN || t == TokenType.BRACKET_OPEN || t == TokenType.BRACE_OPEN) {
+                    depth++;
+                } else if (t == TokenType.PAREN_CLOSE || t == TokenType.BRACKET_CLOSE || t == TokenType.BRACE_CLOSE) {
+                    depth--;
+                } else if (t == TokenType.COMMA && depth == 0) {
+                    elements.add(new int[] {start, i});
+                    start = i + 1;
+                }
+            }
+            if (start < to - 1) {
+                elements.add(new int[] {start, to - 1});
+            }
+            if (elements.size() == c.values().size()) {
+                List<ValueSpecification> values = new ArrayList<>();
+                for (int k = 0; k < elements.size(); k++) {
+                    int[] e = elements.get(k);
+                    values.add(signedNumber(e[0], e[1])
+                            ? signed(c.values().get(k), tokens.type(e[0]) == TokenType.MINUS) : c.values().get(k));
+                }
+                return new com.legend.protocol.spec.PureCollection(values, c.pos());
+            }
+        }
+        return v;
+    }
+
+    /** Tokens {@code [from, to)} are a sign and an Integer or a Float: legend-engine's signed {@code instanceLiteral}. */
+    private boolean signedNumber(int from, int to) {
+        return to - from == 2 && (tokens.type(from) == TokenType.MINUS || tokens.type(from) == TokenType.PLUS)
+                && (tokens.type(from + 1) == TokenType.INTEGER || tokens.type(from + 1) == TokenType.FLOAT);
+    }
+
+    /** The parse of a sign and a number, a unary call on a literal, as the one literal it spells. */
+    private static ValueSpecification signed(ValueSpecification v, boolean negative) {
+        if (!(v instanceof com.legend.protocol.spec.AppliedFunction f) || f.parameters().size() != 1) {
+            throw new IllegalStateException("a sign and a number parsed as " + v);
+        }
+        ValueSpecification operand = f.parameters().get(0);
+        if (operand instanceof com.legend.protocol.spec.CInteger i) {
+            Number n = i.value();
+            Number value = !negative ? n
+                    : n instanceof java.math.BigInteger b ? b.negate() : (Number) Long.valueOf(-n.longValue());
+            return new com.legend.protocol.spec.CInteger(value, signedSpan(f.pos(), i.pos()));
+        }
+        if (operand instanceof com.legend.protocol.spec.CFloat x) {
+            return new com.legend.protocol.spec.CFloat(negative ? -x.value() : x.value(),
+                    x.exact() == null || !negative ? x.exact() : x.exact().negate(), signedSpan(f.pos(), x.pos()));
+        }
+        throw new IllegalStateException("a sign and a number parsed as " + v);
+    }
+
+    /** The sign's start to the number's end, legend-engine's {@code instanceLiteral} span. */
+    private static com.legend.protocol.@com.legend.base.Nullable SourceInfo signedSpan(
+            com.legend.protocol.@com.legend.base.Nullable SourceInfo sign,
+            com.legend.protocol.@com.legend.base.Nullable SourceInfo number) {
+        return sign == null || number == null ? null : new com.legend.protocol.SourceInfo(sign.sourceId(),
+                sign.startLine(), sign.startColumn(), number.endLine(), number.endColumn());
     }
 
     /**

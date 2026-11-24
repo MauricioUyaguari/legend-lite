@@ -167,6 +167,12 @@ class FixtureAdjudicationTest {
      *  reference). Pinned both ways; retires when the pin reaches 4.148.0. */
     private static final int BUILT_AHEAD_DQ_ADDITIONAL_COLUMNS = 1;
 
+    /** Fixtures the pinned reference refuses only for legend-engine 4.151.4's bare Data-element reference in a function
+     *  test's data (2026-11-24, T5 of Studio's local mode; docs/SEMANTICS_REGISTER.md S428; EngineJsonAlignmentTest's
+     *  model), proven the same way ({@link OwnCorpusConformanceTest#builtAheadFunctionDataReference}). Pinned both
+     *  ways; retires when the pin reaches 4.151.4. */
+    private static final int BUILT_AHEAD_FUNCTION_DATA_REFERENCE = 1;
+
     /** F3.7: over-strictness rows pinned per HOST FILE (fixture ids are
      *  line-positional, so exact ids would tax unrelated edits). */
     private static final java.util.Map<String, Integer> OVER_STRICT_PINS =
@@ -247,6 +253,7 @@ class FixtureAdjudicationTest {
         java.util.Set<String> kinds = new java.util.TreeSet<>();
         int agree = 0;
         int builtAhead = 0;
+        int builtAheadReference = 0;
         for (Fixture f : fixtures) {
             boolean engineAccepts;
             String why = "";
@@ -282,6 +289,9 @@ class FixtureAdjudicationTest {
             } else if (!engineAccepts && liteAccepts
                     && OwnCorpusConformanceTest.builtAheadDqAdditionalColumns(f.source())) {
                 builtAhead++;
+            } else if (!engineAccepts && liteAccepts
+                    && OwnCorpusConformanceTest.builtAheadFunctionDataReference(f.source())) {
+                builtAheadReference++;
             } else if (!engineAccepts && liteAccepts) {
                 leniency.add(f.id() + (f.negative() ? " (assertThrows)" : "")
                         + " :: " + oneLine(why) + " :: " + oneLine(f.source()));
@@ -328,6 +338,8 @@ class FixtureAdjudicationTest {
         // F3.7: exact named-set accounting, both directions
         org.junit.jupiter.api.Assertions.assertEquals(BUILT_AHEAD_DQ_ADDITIONAL_COLUMNS, builtAhead,
                 "the fixtures refused only for 4.148.0's additionalColumnsToPersist (S422) moved");
+        org.junit.jupiter.api.Assertions.assertEquals(BUILT_AHEAD_FUNCTION_DATA_REFERENCE, builtAheadReference,
+                "the fixtures refused only for 4.151.4's function test data reference (S428) moved");
         org.junit.jupiter.api.Assertions.assertEquals(
                 new java.util.TreeSet<>(LENIENCY_KINDS), kinds,
                 "leniency KINDS drifted — a NEW kind needs adjudication;"

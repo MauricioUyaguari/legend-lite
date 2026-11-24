@@ -77,6 +77,8 @@ EDGE_TEST_SRCS = [
     "src/test/java/com/legend/ResultWritersTest.java",
     "src/test/java/com/legend/compiler/spec/MultiplicityStrictnessTest.java",
     "src/test/java/com/legend/edge/EngineSpansTest.java",
+    # T4/T5 of Studio's local mode (2026-11-23): lite's model JSON as legend-engine 4.152.x writes and reads it
+    "src/test/java/com/legend/edge/EngineJsonAlignmentTest.java",
     # the net under the harness's H2 sessions (the audit's J22, 2026-11-17)
     "src/test/java/com/legend/edge/EdgeH2SessionTest.java",
     # legend-engine's template parameters, the edge's own table (the audit's J31, 2026-11-18)

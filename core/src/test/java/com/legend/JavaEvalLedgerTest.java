@@ -1934,6 +1934,10 @@ class JavaEvalLedgerTest {
                             // legend-engine's JSON without source information (J35's residue, 2026-11-18): moved from
                             // protocol.SourceInformation; cuts spans from text, decides nothing
                             "EngineSpans.java",
+                            // a relational connection's time zone as legend-engine 4.152.x writes it (2026-11-24, T5 of
+                            // Studio's local mode, the user's "Edge re-spells", S424): the product's bare id written as
+                            // the grammar token, quotes and all; re-spells one value, decides nothing
+                            "EngineTimeZones.java",
                             // legend-engine's grammar where the edge reads its protocol (J21 of the edge audit,
                             // 2026-11-17, the user's "yes to the rule"): three delegations to the parse door's engine
                             // entries; parses, decides nothing

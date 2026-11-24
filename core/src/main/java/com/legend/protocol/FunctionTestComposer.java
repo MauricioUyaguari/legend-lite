@@ -58,9 +58,14 @@ final class FunctionTestComposer {
     }
 
     private static String testData(Protocol.PTestData d, int level) {
+        if (d.data() == null) {
+            // a reference data resolver: the Data element's path alone (legend-engine 4.151.4's
+            // HelperDomainGrammarComposer.renderFunctionTestData)
+            return tab(level) + d.storePath() + ";";
+        }
         StringBuilder b = new StringBuilder(tab(level)).append(RuntimeComposer.elementPointer(d.pointerType(), d.storePath()))
                 .append(":");
-        switch (d.data()) {
+        switch (java.util.Objects.requireNonNull(d.data())) {
             case Protocol.PTestPayload.Reference r -> b.append(" ").append(r.path());
             case Protocol.PTestPayload.ExternalFormat e -> b.append(" ").append(simpleExternalFormat(e));
             default -> b.append("\n").append(EmbeddedDataComposer.compose(d.data(), tab(level + 2)));

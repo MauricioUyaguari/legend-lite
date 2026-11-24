@@ -60,8 +60,13 @@ final class RelationalConnectionComposer {
         b.append(i).append(TAB).append("type: ").append(c.databaseType()).append(";\n");
         String timeZone = c.timeZone();
         if (timeZone != null) {
+            // the value as legend-engine 4.152.x prints it, verbatim: a quoted id as the grammar wrote it (its JSON keeps
+            // the quotes), an offset bare. A bare id -- 4.145.0 to 4.150.x's JSON stripped the quotes -- is quoted, where
+            // 4.152.x prints it bare, a text its own parser refuses (T5 of Studio's local mode, 2026-11-23;
+            // docs/SEMANTICS_REGISTER.md S424)
             b.append(i).append(TAB).append("timezone: ")
-                    .append(utcOffset(timeZone) ? timeZone : convertString(timeZone, true)).append(";\n");
+                    .append(utcOffset(timeZone) || quoted(timeZone) ? timeZone : convertString(timeZone, true))
+                    .append(";\n");
         }
         if (c.quoteIdentifiers() != null) {
             b.append(i).append(TAB).append("quoteIdentifiers: ").append(c.quoteIdentifiers()).append(";\n");
@@ -101,6 +106,11 @@ final class RelationalConnectionComposer {
     }
 
     /** A bare offset from UTC ({@code [+-]dddd}), which the grammar takes unquoted; any other zone is quoted. */
+    /** A zone id as the grammar writes it, between quotes. */
+    private static boolean quoted(String zone) {
+        return zone.length() >= 2 && zone.charAt(0) == '\'' && zone.charAt(zone.length() - 1) == '\'';
+    }
+
     private static boolean utcOffset(String zone) {
         if (zone.length() != 5 || (zone.charAt(0) != '+' && zone.charAt(0) != '-')) {
             return false;
