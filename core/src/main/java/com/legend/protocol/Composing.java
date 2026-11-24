@@ -127,7 +127,7 @@ final class Composing {
 
     /** A model the printer cannot print, named; the reader's refusals say {@code protocol JSON:} instead. */
     static IllegalArgumentException refused(String why) {
-        return new IllegalArgumentException("model printer: " + why);
+        return new CannotPrint("model printer: " + why);
     }
 
     static String join(List<String> parts, String sep) {

@@ -90,6 +90,23 @@ class EngineRefusalsTest {
         assertTrue(body(a).getString("message").startsWith("IllegalArgumentException: protocol JSON: no reader rule"));
     }
 
+    /** A section no parser of lite's knows (T9 of the plan: one the deployment's engine may parse). */
+    @Test
+    void aSectionNoParserKnows_isUnsupported() {
+        LiteV1Api.Answer a = PureV1Routes.grammarToJsonModel("###GraphQL\nQuery q::Q\n{\n  a\n}\n", true);
+        assertEquals(400, a.status(), a.json());
+        assertEquals("UNSUPPORTED", refusal(a), a.json());
+    }
+
+    /** A model the printer cannot print ({@code model printer: ...}). */
+    @Test
+    void aModelThePrinterCannotPrint_isUnsupported() {
+        assertEquals(Map.of("kind", "UNSUPPORTED"),
+                EngineRefusals.of(new com.legend.protocol.CannotPrint("model printer: a function activator")));
+        assertEquals("IllegalArgumentException",
+                PureMessages.typeName(new com.legend.protocol.CannotPrint("model printer: a function activator")));
+    }
+
     @Test
     void aConstructLiteDoesNotImplement_isUnsupported() {
         assertEquals(Map.of("kind", "UNSUPPORTED"),
@@ -97,6 +114,21 @@ class EngineRefusalsTest {
         // through a wrapper too
         assertEquals(Map.of("kind", "UNSUPPORTED"), EngineRefusals.of(
                 new IllegalStateException("wrapped", new com.legend.error.NotImplementedException("a construct"))));
+    }
+
+    /** compilation/compile finds an error's marker by the identity of the message its words made: a body's error (a
+     *  function's wall) keeps that very string, as a model's does. */
+    @Test
+    void aBodysErrorKeepsTheMessageItsWordsMade_soItsMarkerIsFound() {
+        java.util.List<String> made = new java.util.ArrayList<>();
+        java.util.List<com.legend.Compiler.CompileError> errors = com.legend.Compiler.placedCompileErrors(
+                "Class a::A { x: String[1]; }\nfunction a::f(): Integer[1] { 'not an integer' }\n", e -> {
+                    String m = PureMessages.compile(e);
+                    made.add(m);
+                    return m;
+                });
+        assertEquals(1, errors.size(), errors.toString());
+        assertTrue(errors.get(0).message() == made.get(made.size() - 1), "the same string, not an equal one");
     }
 
     @Test

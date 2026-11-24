@@ -234,7 +234,9 @@ public final class PeRatchets {
                     + " //parser-equivalence:update_ratchets; a floor rising, UP)",
             "own_corpus.matched 3503 -> 3508 (2026-11-24, T3 of Studio's local mode: EngineRefusalsTest's models -- the"
                     + " S21, S90 and S395 classes and mapping -- match the reference grammar; measured by"
-                    + " //parser-equivalence:update_ratchets; a floor rising, UP)");
+                    + " //parser-equivalence:update_ratchets; a floor rising, UP)",
+            "own_corpus.matched 3508 -> 3510 (2026-11-24, T3's review round: EngineRefusalsTest's body model, a::A and"
+                    + " a::f, matches the reference grammar; measured by //parser-equivalence:update_ratchets; UP)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

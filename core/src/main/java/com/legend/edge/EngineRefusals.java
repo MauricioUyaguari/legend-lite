@@ -20,7 +20,8 @@ import java.util.Map;
  * <p>Read off the error's type and code, never its words:
  * <ul>
  *   <li>UNSUPPORTED: {@code NotImplementedException}, a dialect's {@code DialectCapability}, a protocol {@code _type}
- *       with no reader rule ({@code NoReaderRule});</li>
+ *       with no reader rule ({@code NoReaderRule}), a model the printer cannot print ({@code CannotPrint}), and a
+ *       section no parser of lite's knows (the one marker read off the parser's words: its refusal has no code);</li>
  *   <li>RULED: the codes of {@link #RULED}, and a protocol field no reader rule takes ({@code UnreadJson}, S29).</li>
  * </ul>
  * An acceptance row whose refusal has no code of its own yet (a generic throw site, or a refusal a query meets at its
@@ -49,7 +50,13 @@ final class EngineRefusals {
     static @com.legend.base.Nullable Map<String, Object> of(Throwable e) {
         for (Throwable t = e; t != null; t = t.getCause()) {
             if (t instanceof com.legend.error.NotImplementedException || t instanceof com.legend.sql.DialectCapability
-                    || t instanceof com.legend.protocol.NoReaderRule) {
+                    || t instanceof com.legend.protocol.NoReaderRule || t instanceof com.legend.protocol.CannotPrint) {
+                return marker("UNSUPPORTED", null);
+            }
+            if (t instanceof com.legend.parser.ParseException p
+                    && String.valueOf(p.getMessage()).endsWith(ParseErrorPlace.UNKNOWN_SECTION)) {
+                // a section no parser of lite's knows: one the deployment's engine may parse (T9 of the plan). The one
+                // marker read off words: the parser's refusal has no code, and its one spelling is ParseErrorPlace's
                 return marker("UNSUPPORTED", null);
             }
             if (t instanceof com.legend.protocol.UnreadJson) {

@@ -133,7 +133,8 @@ public final class PureMessages {
         // and the protocol reader's two typed refusals (T3 of Studio's local mode, 2026-11-24): their type marks the
         // refusal, the words stay legend-engine's clients' IllegalArgumentException
         if (e instanceof com.legend.error.MissingParameters || e instanceof com.legend.error.InvalidParameters
-                || e instanceof com.legend.protocol.UnreadJson || e instanceof com.legend.protocol.NoReaderRule) {
+                || e instanceof com.legend.protocol.UnreadJson || e instanceof com.legend.protocol.NoReaderRule
+                || e instanceof com.legend.protocol.CannotPrint) {
             return "IllegalArgumentException";
         }
         return uncaught(e) ? "IllegalStateException" : e.getClass().getSimpleName();
