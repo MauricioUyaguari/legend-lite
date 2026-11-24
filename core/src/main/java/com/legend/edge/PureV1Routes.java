@@ -199,13 +199,25 @@ public final class PureV1Routes {
      */
     public static Answer compile(String body) {
         List<com.legend.Compiler.CompileError> errors = new ArrayList<>();
+        // each error's marker, by the identity of the message its words made (T3 of Studio's local mode, 2026-11-24): a
+        // compile error is a record of its words and its place, the error itself read here, as it is worded
+        Map<String, Map<String, Object>> refusals = new java.util.IdentityHashMap<>();
+        java.util.function.Function<Throwable, String> words = e -> {
+            String message = PureMessages.compile(e);
+            Map<String, Object> refusal = EngineRefusals.of(e);
+            if (refusal != null) {
+                refusals.put(message, refusal);
+            }
+            return message;
+        };
         Answer a = answer(400, "COMPILATION", () -> {
-            errors.addAll(ModelInput.of(request(body)).placedCompileErrors(PureMessages::compile));
+            errors.addAll(ModelInput.of(request(body)).placedCompileErrors(words));
             return "{\"message\":\"OK\",\"defects\":[]}";
         });
         // a body's message names its element ("in function '...'")
         return errors.isEmpty() ? a
-                : error(400, "COMPILATION", errors.get(0).message(), errors.get(0).at());
+                : EngineEnvelope.error(400, "COMPILATION", errors.get(0).message(), errors.get(0).at(),
+                        refusals.get(errors.get(0).message()));
     }
 
     /**

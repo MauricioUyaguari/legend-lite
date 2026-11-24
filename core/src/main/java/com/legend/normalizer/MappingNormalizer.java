@@ -1178,11 +1178,8 @@ public final class MappingNormalizer {
             // out, not where the syntax does. KEPT by the user's ruling
             // of 2026-11-17 (register S21).
             throw new ModelException(LegendCompileException.Phase.NORMALIZE,
-                    "Pure class mapping for '" + pcm.className()
-                    + "' in mapping '" + md.qualifiedName()
-                    + "' declares no ~src, so it has no source extent to"
-                    + " map from — such a mapping can be compiled and"
-                    + " analysed but cannot produce rows");
+                    com.legend.error.CompileKind.PURE_MAPPING_WITHOUT_SOURCE,
+                    java.util.List.of(pcm.className(), md.qualifiedName()));
         }
         ValueSpecification source = Calls.platform("getAll",
                 List.of(new PackageableElementPtr(srcFqn)));

@@ -69,14 +69,16 @@ public final class EngineEnvelope {
         try {
             return new Answer(200, call.get());
         } catch (RuntimeException | StackOverflowError e) {
+            // a refusal that is not the user's error is marked beside the engine's fields (T3 of Studio's local mode)
+            Map<String, Object> refusal = EngineRefusals.of(e);
             if (refusesTheText(e) && !uncaught.test(e)) {
-                return error(status, errorType, words.apply(e), place.apply(e));
+                return error(status, errorType, words.apply(e), place.apply(e), refusal);
             }
             if (!(e instanceof IllegalArgumentException || e instanceof com.legend.error.DataError)) {
                 e.printStackTrace();
             }
             Throwable n = e instanceof com.legend.error.DataError && e.getCause() != null ? e.getCause() : e;
-            return error(500, null, typeName.apply(n) + ": " + words.apply(n));
+            return error(500, null, typeName.apply(n) + ": " + words.apply(n), null, refusal);
         }
     }
 
@@ -104,12 +106,24 @@ public final class EngineEnvelope {
      *  neema2's main, 2026-11-23; docs/SEMANTICS_REGISTER.md S400). */
     public static Answer error(int status, @com.legend.base.Nullable String errorType, String message,
             com.legend.protocol.@com.legend.base.Nullable SourceInfo at) {
+        return error(status, errorType, message, at, null);
+    }
+
+    /** legend-engine's error body, a refusal that is not the user's error marked beside its fields
+     *  ({@code "refusal"}, after the message, as the engine's fields sort; {@link EngineRefusals}; T3 of Studio's local
+     *  mode, 2026-11-24, docs/SEMANTICS_REGISTER.md S429). */
+    static Answer error(int status, @com.legend.base.Nullable String errorType, String message,
+            com.legend.protocol.@com.legend.base.Nullable SourceInfo at,
+            @com.legend.base.Nullable Map<String, Object> refusal) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("code", -1);
         if (errorType != null) {
             out.put("errorType", errorType);
         }
         out.put("message", message);
+        if (refusal != null) {
+            out.put("refusal", refusal);
+        }
         if (at != null) {
             out.put("sourceInformation", sourceInformation(at));
         }

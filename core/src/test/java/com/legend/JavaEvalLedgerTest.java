@@ -1934,6 +1934,9 @@ class JavaEvalLedgerTest {
                             // legend-engine's JSON without source information (J35's residue, 2026-11-18): moved from
                             // protocol.SourceInformation; cuts spans from text, decides nothing
                             "EngineSpans.java",
+                            // a refusal marked in legend-engine's error answer (2026-11-24, T3 of Studio's local mode,
+                            // S429): read off an error's type and compile code, never its words; marks, decides no value
+                            "EngineRefusals.java",
                             // a parse error's place as legend-engine writes its sourceInformation (2026-11-23, T2 of
                             // Studio's local mode): lite's parser's line and column spelled as the engine's span, the
                             // token's length by the engine's lexer rules; spells a failure's place, decides nothing

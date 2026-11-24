@@ -38,7 +38,9 @@ final class ParseErrorPlace {
     /** legend-engine's {@code ParserErrorListener} names the end of the input {@code <EOF>}. */
     private static final int EOF_LENGTH = "<EOF>".length();
 
-    private static final String UNKNOWN_SECTION = "' is not a known section parser";
+    /** The end of lite's refusal of a section no parser knows (PmcdParser's): its one spelling, read here and by
+     *  {@link EngineRefusals}. */
+    static final String UNKNOWN_SECTION = "' is not a known section parser";
 
     /** {@code e}'s place in {@code text} as legend-engine writes a parse error's {@code sourceInformation}, or null
      *  where lite's parser placed it nowhere (or, for a section no parser knows, where none was asked). */
